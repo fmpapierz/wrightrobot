@@ -1758,7 +1758,7 @@ const F8 = [1, -1].map((sg, i) => { const pts = []; for (let k = 0; k <= 120; k+
   const curbSkip = (side, d, len) => { const u = uOf(d, len); return ends(u) && inner(side, d, len) && f8gap(u) < .55 ? "butt" : false; };
   const sideSkip = (side, d, len) => { const u = uOf(d, len); return ends(u) && inner(side, d, len) && f8gap(u) < .03; };
   const dashSkip = (d, len) => { const u = uOf(d, len); if (!ends(u)) return false; const sep = 2 * Math.abs(f8off(u)); return sep < RW + .5 && (sep > .2 || sg < 0); };
-  const r = makeRoad({ pts, postStep: 5, curbSkip, sideSkip, dashSkip, h0: MAp.h, h1: UCp.h, y: u => DECK + (i === 0 ? 1.25 : -.55) * smooth((u - .3) / .14) * smooth((.7 - u) / .14), postFilter: i === 0 ? (pp, d, len) => Math.abs(d / len - .5) > .07 : null });
+  const r = makeRoad({ own: "eight", pts, postStep: 5, curbSkip, sideSkip, dashSkip, h0: MAp.h, h1: UCp.h, y: u => DECK + (i === 0 ? 1.25 : -.55) * smooth((u - .3) / .14) * smooth((.7 - u) / .14), postFilter: i === 0 ? (pp, d, len) => Math.abs(d / len - .5) > .07 : null });
   r.skipAt = k => curbSkip(k < r.N / 2 ? -sg : sg, k / r.N * r.len, r.len); return r; });
 // the fork at each end: the two inner curbs run into each other round a nose, on a small piece of deck that fills the tip of the gap
 for (const end of [0, 1]) { const [A, B] = F8, N = A.N, ix = k => end ? N - k : k, sA = end ? 1 : -1, sgA = end ? -1 : 1;
@@ -1778,7 +1778,7 @@ const AX = buildAxes(UCp);
 const PHholes = [-.45, .35, -.1, .5, -.55, .15, .45, -.3, 0, -.5, .4, -.15, .55, -.4, .1, -.6, .3, -.2].map((o, k) => ({ d: 3.4 + 2.25 * k, o, r: .5 + .32 * ((k * .618) % 1), dep: .13 + .05 * ((k * .37) % 1) }));   // as deep as the deck allows: the road is 0.25 thick, and a hole must not come out underneath
 const phBump = (d, o) => { let h = .02 * Math.sin(d * 1.7) * Math.cos(o * 1.4 + d * .35) + .01 * Math.sin(d * 3.9 + 1.2 + o * 2.1);
   for (const p of PHholes) { const q = Math.hypot(d - p.d, o - p.o) / p.r; if (q < 1.5) h += -p.dep * smooth((1 - q) / .6) + .03 * Math.exp(-(((q - 1.08) / .2) ** 2)); } return h; };
-const PH = connect(AX.exit, { x: -28.5, z: -44, h: 0 }, [[-15.7, -14.8], [-17.4, -19.6], [-21.6, -25], [-27, -29.4], [-32.4, -33.7], [-34.6, -39.2], [-32.6, -43.3]], { fair: 40, bump: phBump });
+const PH = connect(AX.exit, { x: -28.5, z: -44, h: 0 }, [[-15.7, -14.8], [-17.4, -19.6], [-21.6, -25], [-27, -29.4], [-32.4, -33.7], [-34.6, -39.2], [-32.6, -43.3]], { fair: 40, bump: phBump, own: "potholes" });
 const TOP = makeRoad({ pts: [[-28.5, -44], [TT.entry.x, TT.entry.z]], startLine: 19.5 });
 const FIN = buildFinish({ x: -9, z: -44, h: 0 });
 tag(FIN.g, "Start / Finish", 0, 7.4, 0, "node");
@@ -2270,7 +2270,7 @@ resetBtn.onclick = () => { if (drv.on) resetCar(); resetBtn.blur(); };
 function groundUnder(x, z, y) { for (const dy of [1.0, .45, -.1, -.6]) { const su = surfaceAt(x, z, y + dy); if (su && !su.blocked) return Math.max(su.y, lowPlane(x, z)); } return lowPlane(x, z); }
 // the highest ground under the car's four wheels and its middle, if it stood at (x, z) facing h: where it can be set down without any part of it ending up inside something
 function groundUnderCar(x, z, h, y) { const c = Math.cos(h), sn = Math.sin(h); let m = groundUnder(x, z, y); for (const [wx, wz] of WHEELS) m = Math.max(m, groundUnder(x + wx * c + wz * sn, z - wx * sn + wz * c, y)); return m; }
-function flipCar() { if (!drv.on || drv.mode === "place") return; setAxes(); SURF.stamp = -1; const x = drv.p.x, z = drv.p.z, hl = Math.hypot(_ax.x, _ax.z), h = hl > .3 ? Math.atan2(-_ax.z, _ax.x) : Math.atan2(_az.x, _az.z);
+function flipCar() { if (!drv.on || drv.mode === "place") return; setAxes(); SURF.stamp = -1; const x = drv.p.x, z = drv.p.z, hl = Math.hypot(_ax.x, _ax.z), th = trackH(x, drv.p.y - .5, z), h = th !== null ? th : hl > .3 ? Math.atan2(-_ax.z, _ax.x) : Math.atan2(_az.x, _az.z);   // upright, and on the track nose the right way
   const y0 = groundUnderCar(x, z, h, drv.p.y - .6); drv.mode = "place"; drv.boosting = false; let yl = y0, vy = 0;
   // the spot it is set down on may be a moving platform: the landing height follows it all the way down, and the car is set down moving with it, so a rising platform does not kick it
   startPlace({ x, y: y0, z, h }, { v0: drv.v.clone().multiplyScalar(.3), w0: drv.w, flip: true, yNow: dt => { const y = groundUnderCar(x, z, h, yl); if (dt > 0 && Math.abs(y - yl) < .06) vy += ((y - yl) / dt - vy) * .3; return (yl = y); },
@@ -2317,10 +2317,10 @@ const camRay = new THREE.Raycaster(), OCCL = [], SV = { t: 0, over: false, off: 
 function clearView(t, az, el, dist) { if (!OCCL.length) scene.traverse(o => { if (o.isMesh && !o.isInstancedMesh && (Array.isArray(o.material) ? o.material.some(m => xrayMats.includes(m)) : xrayMats.includes(o.material))) OCCL.push(o); });
   const ce = Math.cos(el); camRay.set(t, _t4.set(ce * Math.cos(az), Math.sin(el), ce * Math.sin(az))); camRay.near = 1.1; camRay.far = dist; return camRay.intersectObjects(OCCL, false).length === 0; }
 // the views the chase camera can take: name, elevation, distance (a factor on the usual one, or a fixed distance when negative), how far ahead of the car it looks and how high, first person
-const CVIEWS = [["Chase", .5, 1, 1.2, .5], ["Low chase", .15, 1.08, 3.6, .62], ["High chase", .8, 1.25, 2.6, .5], ["Far chase", .46, 1.8, 3.4, .6], ["Close chase", .32, .48, 2, .6], ["Over the hood", .2, -2.7, 1.5, .62], ["First person", 0, 1, 0, 0, 1], ["Top down", 1.42, -17, .8, 0]];
+const CVIEWS = [["Low chase", .15, 1.08, 3.6, .62], ["Chase", .5, 1, 1.2, .5], ["High chase", .8, 1.25, 2.6, .5], ["Far chase", .46, 1.8, 3.4, .6], ["Close chase", .32, .48, 2, .6], ["Over the hood", .2, -2.7, 1.5, .62], ["First person", 0, 1, 0, 0, 1], ["Top down", 1.42, -17, .8, 0]];
 function camSpec(P, h, o, dt) {
   const fx = Math.cos(h), fz = -Math.sin(h), sp = !drv.on ? 3 : drv.mode === "drive" ? drv.v.length() : 0; o.az = Math.atan2(-fz, -fx); o.el = .5; o.dist = 7.5 + Math.min(5, sp * .25) + (drv.airT > .25 ? 2.5 : 0); o.t.set(P.x + fx * 1.2, P.y + .5, P.z + fz * 1.2);
-  { const cv = CVIEWS[CAM.view || 0]; o.fp = cv[5] === 1; if (CAM.view) { o.el = cv[1]; o.dist = cv[2] > 0 ? o.dist * cv[2] : -cv[2]; o.t.set(P.x + fx * cv[3], P.y + cv[4], P.z + fz * cv[3]); } if (o.fp) return; }
+  { const cv = CVIEWS[CAM.view || 0]; o.fp = cv[5] === 1; o.el = cv[1]; o.dist = cv[2] > 0 ? o.dist * cv[2] : -cv[2]; o.t.set(P.x + fx * cv[3], P.y + cv[4], P.z + fz * cv[3]); if (o.fp) return; }
   const l = AX.g.worldToLocal(_t3.copy(P)); if (l.x > -1.2 && l.x < 9.5 && Math.abs(l.z) < 3.4 && Math.abs(P.y - DECK) < 3) { const hs = AX.entry.h, sx = Math.cos(hs), sz = -Math.sin(hs); o.az = Math.atan2(-Math.cos(hs), -Math.sin(hs)); o.el = .24; o.dist = 10.5; o.t.set(P.x + sx * 1.6, P.y + .6, P.z + sz * 1.6); return; }
   const ds = Math.hypot(P.x - SPc[0], P.z - SPc[1]); if (Math.abs(ds - SPR) > 2.6 || P.y > spTop + .6 || P.y < SPy0 - .6) { SV.over = false; SV.t = 0; return; }
   SV.t -= dt; if (SV.t <= 0) { SV.t = .15; SV.over = roadAbove(P.x, P.y, P.z); }   // looked up a few times a second, not every frame
@@ -2360,24 +2360,66 @@ function zoneAt() { const p = drv.p; _t1.copy(p); AX.g.worldToLocal(_t1); if (_t
     if (!sf.own) nn++; else if (sf.own === k0 || !k0) { k0 = sf.own; n0++; } }
   return n0 >= 3 ? k0 : nn >= 3 ? null : drv.zone; }
 const poseNow = () => ({ x: car.mesh.position.x, y: car.mesh.position.y, z: car.mesh.position.z, h: yawOf(car.mesh), q: drv.q.clone(), t: drv.time });
-const ZNAME = { spiral: "spiral", ferris: "Ferris wheel", axes: "swinging axes" };
+const ZNAME = { spiral: "spiral", ferris: "Ferris wheel", axes: "swinging axes", eight: "figure eight", potholes: "pot hole road" };
 // the pose the car had a moment before it drove into a section: still on the road in front of it, so its sensors are met again
 const entryPose = () => { let g = null; for (const e of drv.hist) if (e.t <= drv.time - .3) g = e; const q = poseNow(); return g && Math.hypot(g.x - q.x, g.z - q.z) < 4 && Math.abs(g.y - q.y) < 1 ? g : q; };
-function zoneStart(z) { if (z === "axes") return AXZ.start; if (z === "spiral") { const q = SP.poseAt(1); return { x: q.x, y: q.y, z: q.z, h: q.h }; } const st = stations.find(q => q.key === z) || FE, q = wpose(st, z === "ferris" ? .6 : -.4, 0); return { x: q.x, y: DECK, z: q.z, h: st.entry.h }; }
-function resetSpot() { if (drv.zone) return drv.zoneEntry || zoneStart(drv.zone);
+function zoneStart(z) { if (z === "axes") return AXZ.start; if (z === "eight" || z === "potholes") { const q = (z === "eight" ? F8[0] : PH).poseAt(1.2); return { x: q.x, y: q.y, z: q.z, h: q.h }; } if (z === "spiral") { const q = SP.poseAt(1); return { x: q.x, y: q.y, z: q.z, h: q.h }; } const st = stations.find(q => q.key === z) || FE, q = wpose(st, z === "ferris" ? .6 : -.4, 0); return { x: q.x, y: DECK, z: q.z, h: st.entry.h }; }
+function resetSpot() { if (drv.zone === "eight" || drv.zone === "potholes") return zoneStart(drv.zone);   // off the figure eight or the pot hole road anywhere: back to where that stretch begins
+  if (drv.zone) return drv.zoneEntry || zoneStart(drv.zone);
   let g = null; for (const e of drv.hist) if (e.t <= drv.lastGoodT - .5) g = e; if (!g) g = drv.hist[0] || null;
   if (drv.touch && (!g || (drv.touch.t > drv.lastGoodT + .4 && Math.hypot(drv.touch.x - g.x, drv.touch.y - g.y, drv.touch.z - g.z) > 3))) return drv.touch;
   return g || drv.safe || AXZ.home; }
-function resetCar(msg) { if (!drv.on || drv.mode === "place") return; const s = resetSpot(); drv.mode = "place"; drv.boosting = false; SURF.stamp = -1;
+// the way the track runs at a place (the heading a car has when it drives it the right way round), or null where there is no track
+function trackH(x, y, z) { const su = surfaceAt(x, z, y + .25); if (!su || su.blocked) return null; if (su.pose) return su.pose.h; const sf = su.s; for (let o = sf.par || sf.obj; o; o = o.parent) { const st = stations.find(q => q.g === o); if (st) return st.entry.h; } return null; }
+function resetCar(msg) { if (!drv.on || drv.mode === "place") return; let s = resetSpot(); { const th = trackH(s.x, s.y, s.z); if (th !== null) s = { x: s.x, y: s.y, z: s.z, h: th }; }   // nose the right way, whichever way it was pointing
+  drv.mode = "place"; drv.boosting = false; SURF.stamp = -1;
   startPlace({ x: s.x, y: s.y, z: s.z, h: s.h, q: s.q }, { v0: drv.v, w0: drv.w, lift: true, done: () => setBody(s.x, s.y, s.z, s.h, 0, s.q) }); drv.v.set(0, 0, 0); drv.airT = 0; if (msg) say(msg); }
-function setDrive(v) { if (v === drv.on) return; drv.on = v; driveBtn.classList.toggle("on", v); document.getElementById("driveHint").style.display = v ? "" : "none"; for (const k in keys) keys[k] = false; boostFX.stop();
-  SURF.stamp = -1; if (!v) { SENSORS.forEach(sn => { sn.was = false; if (sn.flag) sn.flag(false); }); handOff(); return; }
+function setDrive(v, snap) { if (v === drv.on) return; drv.on = v; driveBtn.classList.toggle("on", v); document.getElementById("driveHint").style.display = v ? "" : "none"; for (const k in keys) keys[k] = false; boostFX.stop();
+  SURF.stamp = -1; if (!v) { SENSORS.forEach(sn => { sn.was = false; if (sn.flag) sn.flag(false); }); handOff(snap); return; }
   car.out = true; if (course[car.pi].occ === car) course[car.pi].occ = null;   // the car you drive is off the course: the others carry on without it
   if (tour.on) tourEnd(); place = null; placeFX.visible = false; scene.updateMatrixWorld(true); const m = car.mesh; m.getWorldPosition(_t1); m.getWorldQuaternion(drv.q); const h0 = yawOf(m);
   _t2.set(0, CP.com, 0).applyQuaternion(drv.q); drv.p.copy(_t1).add(_t2); drv.v.set(Math.cos(h0) * 2.6, 0, -Math.sin(h0) * 2.6); drv.w.set(0, 0, 0); drv.uL = drv.uR = 2.6; drv.gr.fill(true); drv.ng = 4;
   Object.assign(drv, { mode: "drive", lowT: 0, flipT: 0, fallen: false, told: false, boost: 100, boosting: false, inAx: false, zone: null, zoneEntry: null, zt: 1e9, zFell: -9, touch: null, lastGoodT: -9 }); drv.hist.length = 0; drv.safe = { x: _t1.x, y: _t1.y, z: _t1.z, h: h0 }; showCar();
   setFollow(true, true); camSync(); say("W / S drive · A / D steer · Space hop (twice = double jump) · left Shift boost · R reset · Q flip upright"); }
 driveBtn.onclick = () => { setDrive(!drv.on); driveBtn.blur(); };
+// ---------- another car (a player's, in the game) ----------
+// Where the two bodies overlap they are pushed apart, and they exchange momentum as two rigid bodies do: along the line of contact with a little bounce,
+// across it with friction, and each is also turned by a blow that lands off its centre. Each player's page works out its own car's half from both cars' speeds and spins
+const _b1 = new V3(), _b2 = new V3(), _b3 = new V3(), _b4 = new V3(), _b5 = new V3(), _bq = new THREE.Quaternion(), ZERO3 = new V3();
+function bumpCar(o, dt) { o.cd = Math.max(0, (o.cd || 0) - dt); if (!drv.on || drv.mode !== "drive") return 0;
+  const up2 = _b1.set(0, 1, 0).applyQuaternion(o.q), c2x = o.p.x + up2.x * CP.com, c2y = o.p.y + up2.y * CP.com, c2z = o.p.z + up2.z * CP.com, dx = drv.p.x - c2x, dz = drv.p.z - c2z;
+  if (dx * dx + dz * dz > 4 || Math.abs(drv.p.y - c2y) > .8) return 0; setAxes();
+  const l1 = Math.hypot(_ax.x, _ax.z) || 1, a1 = [_ax.x / l1, _ax.z / l1], f2 = _b2.set(1, 0, 0).applyQuaternion(o.q), l2 = Math.hypot(f2.x, f2.z) || 1, a2 = [f2.x / l2, f2.z / l2], HX = CP.hx, HZ = CP.hz;   // the two footprints as rectangles on the ground
+  let pen = 1e9, nx = 0, nz = 0; for (const a of [a1, [-a1[1], a1[0]], a2, [-a2[1], a2[0]]]) { const dd = dx * a[0] + dz * a[1], ra = HX * Math.abs(a1[0] * a[0] + a1[1] * a[1]) + HZ * Math.abs(-a1[1] * a[0] + a1[0] * a[1]), rb = HX * Math.abs(a2[0] * a[0] + a2[1] * a[1]) + HZ * Math.abs(-a2[1] * a[0] + a2[0] * a[1]), ov = ra + rb - Math.abs(dd);
+    if (ov <= 0) return 0; if (ov < pen) { pen = ov; const sg = dd < 0 ? -1 : 1; nx = a[0] * sg; nz = a[1] * sg; } }
+  // the point of contact: the middle of the corners of each that lie inside the other
+  let cx = 0, cz = 0, cn = 0; const corner = (px, pz, a, ox, oz, b) => { for (const sx of [-1, 1]) for (const sz of [-1, 1]) { const x = px + a[0] * HX * sx - a[1] * HZ * sz, z = pz + a[1] * HX * sx + a[0] * HZ * sz, lx = (x - ox) * b[0] + (z - oz) * b[1], lz = -(x - ox) * b[1] + (z - oz) * b[0]; if (Math.abs(lx) <= HX + .02 && Math.abs(lz) <= HZ + .02) { cx += x; cz += z; cn++; } } };
+  corner(drv.p.x, drv.p.z, a1, c2x, c2z, a2); corner(c2x, c2z, a2, drv.p.x, drv.p.z, a1); if (cn) { cx /= cn; cz /= cn; } else { cx = (drv.p.x + c2x) / 2; cz = (drv.p.z + c2z) / 2; }
+  drv.p.x += nx * pen * .5; drv.p.z += nz * pen * .5;                                  // half the overlap each: the other car's own page moves it the other half
+  if (o.cd > 0) return 0;                                                               // (one blow per contact: the other car's new speed takes a moment to arrive)
+  const n = _b3.set(nx, 0, nz), r1 = _b4.set(cx - drv.p.x, (c2y - drv.p.y) / 2, cz - drv.p.z), r2 = _b5.set(cx - c2x, (drv.p.y - c2y) / 2, cz - c2z), v2 = o.v || ZERO3, w2 = o.w || ZERO3;
+  const vr = velAt(r1, _t1).sub(v2).sub(_t2.crossVectors(w2, r2)), vn = vr.dot(n); if (vn >= 0) return 0;
+  const invI2 = (t, out) => { _bq.copy(o.q).invert(); out.copy(t).applyQuaternion(_bq); out.x /= CP.Ix; out.y /= CP.Iy; out.z /= CP.Iz; return out.applyQuaternion(o.q); };
+  const K = d => 2 / CP.m + invI(_t2.crossVectors(r1, d), _t3).cross(r1).dot(d) + invI2(_t2.crossVectors(r2, d), _t3).cross(r2).dot(d);
+  const jn = -(1 + .28) * vn / K(n), vt = _t4.copy(vr).addScaledVector(n, -vn), vtl = vt.length(), td = _b1; let jt = 0; if (vtl > 1e-4) { td.copy(vt).multiplyScalar(1 / vtl); jt = Math.min(vtl / K(td), .45 * jn); }
+  impulse(r1, n, jn); if (jt > 0) impulse(r1, td, -jt); o.cd = .22; return jn; }
+// ---------- the wide start (the game, with several players) ----------
+// The start straight opens out to take every car side by side on one line, then narrows smoothly back to the road before the finish arch: one start for all, and a squeeze to fight over
+const GRID = { n: 0, W: 0, g: null, hid: [], xa: -28.3, xg: -24.6, xb: -11.8, lane: 1.5, zc: -44 };
+const gridHW = x => { if (!GRID.n || x < GRID.xa || x > GRID.xb) return 0; return RW / 2 + (GRID.W - RW / 2) * Math.min(smooth((x - GRID.xa) / 1.6), smooth((GRID.xb - x) / (GRID.xb - GRID.xg - 2.2))); };
+addSurf(scene, DECK + .03, (x, z) => { const h = gridHW(x); return h > 0 && Math.abs(z - GRID.zc) <= h; });
+const gridSpot = (i, n) => { n = Math.max(n, i + 1); const row = (i / 8) | 0, cols = Math.min(8, n - row * 8), col = i % 8; return [GRID.xg - row * 1.9, DECK + .03, GRID.zc + (col - (cols - 1) / 2) * GRID.lane, 0]; };
+function setGrid(n) { n = n > 1 ? Math.min(n, 24) : 0; if (n === GRID.n) return; if (GRID.g) { scene.remove(GRID.g); GRID.g.traverse(o => { if (o.geometry) o.geometry.dispose(); }); GRID.g = null; } for (const [o, i, mt] of GRID.hid) { o.setMatrixAt(i, mt); o.instanceMatrix.needsUpdate = true; } GRID.hid.length = 0;
+  GRID.n = n; SURF.stamp = -1; if (!n) return; GRID.W = Math.max(RW / 2, Math.min(n, 8) * GRID.lane / 2 + .35); const g = GRID.g = new THREE.Group(), zc = GRID.zc, xs = []; for (let x = GRID.xa; x < GRID.xb; x += .35) xs.push(x); xs.push(GRID.xb);
+  const sh = new THREE.Shape(); xs.forEach((x, k) => k ? sh.lineTo(x, zc + gridHW(x)) : sh.moveTo(x, zc + gridHW(x))); for (let k = xs.length - 1; k >= 0; k--) sh.lineTo(xs[k], zc - gridHW(xs[k]));
+  const po = (c, f) => new THREE.MeshStandardMaterial({ color: c, roughness: .9, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: f, polygonOffsetUnits: f });   // (drawn in front of the painted strips of the road underneath)
+  const slab = mesh(new THREE.ExtrudeGeometry(sh, { depth: RT_, bevelEnabled: false }).rotateX(HP), [po(COL.road, -6), plyMat]); slab.position.y = DECK + .03; slab.userData.noPillar = true; g.add(slab);
+  for (const sg of [-1, 1]) { const pos = [], idx = []; xs.forEach((x, k) => { const h = gridHW(x); pos.push(x, DECK + .037, zc + sg * h, x, DECK + .037, zc + sg * (h - .16)); if (k) { const a = 2 * k - 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); } }); const ge = new THREE.BufferGeometry(); ge.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); ge.setIndex(idx); ge.computeVertexNormals(); const st = new THREE.Mesh(ge, po(COL.curb, -9)); st.userData.noPillar = true; g.add(st); }
+  const wh = po(0xf4f4f0, -9), mark = (w, d, x, z) => { const q = at(box(w, .012, d, wh), x, DECK + .037, z); q.castShadow = false; q.userData.noPillar = true; g.add(q); };
+  for (let i = 0; i < n; i++) { const s = gridSpot(i, n); mark(.08, 1.15, s[0] + .95, s[2]); mark(.5, .06, s[0] + .7, s[2] - .58); mark(.5, .06, s[0] + .7, s[2] + .58); } for (let x = GRID.xg + 2.2; x < GRID.xb - .6; x += 1.3) mark(.6, .07, x, zc);
+  for (const x of [GRID.xg - .4, GRID.xg + 4.6]) for (const sg of [-1, 1]) { const h = gridHW(x); if (h > RW / 2 + .8) { const p = at(box(.3, DECK - .22, .3, COL.plyD), x, (DECK - .22) / 2, zc + sg * (h - .35)); p.userData.noPillar = true; g.add(p); } }
+  scene.add(g); const m4 = new THREE.Matrix4(), zero = new THREE.Matrix4().makeScale(0, 0, 0), p = new V3();   // nothing of the town may stand up through the wider deck
+  if (CITY.g) CITY.g.traverse(o => { if (!o.isInstancedMesh) return; let ch = false; for (let i = 0; i < o.count; i++) { o.getMatrixAt(i, m4); p.setFromMatrixPosition(m4); const h = gridHW(p.x); if (h > 0 && Math.abs(p.z - zc) < h + .9 && Math.abs(p.z - zc) > RW / 2 - .2) { GRID.hid.push([o, i, m4.clone()]); o.setMatrixAt(i, zero); ch = true; } } if (ch) o.instanceMatrix.needsUpdate = true; }); }
 // more cars: each new one is put on the stretch of open road that is furthest from all the others
 const carN = document.getElementById("carN");
 function addCar() { if (CARS.length >= 8) { say("Eight cars is the most"); return; } let best = null;
@@ -2408,7 +2450,7 @@ function driveTick(dt) {
   // where it would be put back: the middle of the road at the last place any part of the car touched it (so after a fall onto a lower road, that lower road). Inside the swinging axes: the start of that section.
   let tp = null; for (let i = 0; i < 4 && !tp; i++) if (drv.gr[i]) for (let k = 0; k < 2; k++) { const g = GP[i * WS + k]; if (g.ok && g.pose && g.surf.safe) { tp = g.pose; break; } }
   if (!tp && !drv.calm) for (const g of GB) if (g.hit === drv.tick && g.pose && g.surf && g.surf.safe) { tp = g.pose; break; }
-  drv.time += dt; if (tp) { const hr = _ay.y > .5 ? yawOf(car.mesh) : drv.v.lengthSq() > .3 ? Math.atan2(-drv.v.z, drv.v.x) : (drv.touch ? drv.touch.h : tp.h); drv.touch = { x: tp.x, y: tp.y, z: tp.z, h: Math.cos(hr - tp.h) >= 0 ? tp.h : tp.h + Math.PI, t: drv.time }; }
+  drv.time += dt; if (tp) { const hr = _ay.y > .5 ? yawOf(car.mesh) : drv.v.lengthSq() > .3 ? Math.atan2(-drv.v.z, drv.v.x) : (drv.touch ? drv.touch.h : tp.h); drv.touch = { x: tp.x, y: tp.y, z: tp.z, h: tp.h, t: drv.time }; }
   if (drv.ng === 4 && drv.onTrack === 4 && _ay.y > .8) { const z = zoneAt(), y = drv.p.y;   // on all four tyres: which section is it in, and the pose it entered that section with
     // dropped onto a lower lap of the spiral, or from a section onto some other road, without its tyres on anything in between: that is a fall, and the section's start is still where it goes back to
     // (on the Ferris wheel a platform carries the car down a long way, sometimes with a tyre in the air: that is a ride, not a fall. There it only counts when the car lands on some other section, having touched nothing on the way)
@@ -2455,10 +2497,11 @@ function placeTick(dt) { const a = place; a.t += dt; const s = clamp(a.t / a.T, 
     placeFX.beam.scale.set(1, Math.max(.05, m.position.y - a.p1.y + .6), 1); placeFX.beam.material.opacity = .16 * k; }
   if (s >= 1) { place = null; placeFX.visible = false; if (a.done) a.done(); } }
 // leaving Drive: the car carries on by itself from wherever it is. The nearest point of the course is found, the car is eased onto it, and it drives on from there.
-function handOff() { const m = car.mesh; scene.updateMatrixWorld(true); const P = m.getWorldPosition(new V3()), Q = m.getWorldQuaternion(new THREE.Quaternion()), w = new V3(), h0 = yawOf(m); let bi = 0, bd = 1e9;
+function handOff(snap) { const m = car.mesh; scene.updateMatrixWorld(true); const P = m.getWorldPosition(new V3()), Q = m.getWorldQuaternion(new THREE.Quaternion()), w = new V3(), h0 = yawOf(m); let bi = 0, bd = 1e9;
   const tryPiece = pc => { pc.enter(); if (pc.seek) { if (pc.g) { w.copy(P); pc.g.worldToLocal(w); pc.seek(w.x, w.z, w.y, h0 - pc.g.rotation.y); } else pc.seek(P.x, P.y, P.z); } pc.step(m, 0); m.updateWorldMatrix(true, false); return m.getWorldPosition(w).clone(); };
   cur = car; course.forEach((pc, i) => { if (pc.g && pc.occ && pc.occ !== car) return; const t = tryPiece(pc), d = Math.hypot(t.x - P.x, (t.y - P.y) * 2, t.z - P.z); if (d < bd) { bd = d; bi = i; } });   // (a mechanism another car is in is left alone)
-  car.pi = bi; car.out = false; if (course[bi].g) course[bi].occ = car; const T = tryPiece(course[bi]), TQ = m.getWorldQuaternion(new THREE.Quaternion()); scene.add(m); m.position.copy(P); m.quaternion.copy(Q);
+  car.pi = bi; car.out = false; if (course[bi].g) course[bi].occ = car; const T = tryPiece(course[bi]), TQ = m.getWorldQuaternion(new THREE.Quaternion()); if (snap) return;   // (snap: it is left on the course at once, already running)
+  scene.add(m); m.position.copy(P); m.quaternion.copy(Q);
   if (bd > .04 || Q.angleTo(TQ) > .03) startPlace({ x: T.x, y: T.y, z: T.z, q: TQ }, { v0: drv.v.clone().clampLength(0, 8), w0: drv.w, lift: bd > 3 }); }
 
 // ---------- boost flame: two jets, a spray of hot sparks that cool from white through orange to red, thin smoke, a glow on the road and two light trails ----------
@@ -2593,7 +2636,7 @@ stations.forEach(s => s.update(0, .016, .016));
 function tick(dt) {
   simT += dt; for (const s of stations) { const r = s.rate; s.t += dt * r; s.update(s.t, dt * Math.abs(r), dt * r); }
   if (drv.on) driveTick(dt); else if (place) placeTick(dt);   // (place: the car is being eased back onto the course after you let go of Drive)
-  for (const c of CARS) { if (c === car && (drv.on || place)) continue; cur = c; let guard = 0, d2 = dt;
+  for (const c of CARS) { if (c === car && (drv.on || place)) continue; cur = c; let guard = 0, d2 = dt * (course[c.pi].g ? 1 : c.rate || 1);   // (c.rate: a car just handed over from a fast drive runs the open road faster for a moment, so its speed can be eased down instead of cut)
     while (course[c.pi].step(c.mesh, d2) && guard++ < 3) { const ni = (c.pi + 1) % course.length, np = course[ni];
       if (np.g ? (np.occ && np.occ !== c) : CARS.some(o => o !== c && !o.out && o.pi === ni && o.d < GAPC)) break;   // the next piece is taken: wait here
       if (course[c.pi].occ === c) course[c.pi].occ = null; c.pi = ni; if (np.g) np.occ = c; np.enter(); d2 = 0; } }
@@ -2604,6 +2647,7 @@ renderer.setAnimationLoop(() => {
   if (toastT > 0 && (toastT -= dt) <= 0) toast.style.display = "none"; hoverTick(); dimHover(); if (!drv.on) boostFX.update(dt);
   if (playing || drv.on) { const steps = Math.ceil(speed * dt / .02); for (let i = 0; i < steps; i++) tick(speed * dt / steps); }
   if ((playing || drv.on) && CITY.tick) CITY.tick(speed * dt);   // the aircraft at the airfield
+  if (FRAME.p) FRAME.p(dt);
   if (tour.on) tourTick(dt);
   else if (follow && drv.chase && (drv.on || CAM.auto)) chaseCam(dt);
   else if (follow) { car.mesh.getWorldPosition(ctgt); cpos.subVectors(ctgt, lastCar); camera.position.add(cpos); controls.target.add(cpos); lastCar.copy(ctgt); }   // shift by exactly what the car moved: no snapping back
@@ -2617,7 +2661,7 @@ renderer.setAnimationLoop(() => {
 document.getElementById("loading").remove();
 window.__ready = true;
 AXZ.start = (() => { const p = wpose(AX, .5, 0); return { x: p.x, y: DECK, z: p.z, h: AX.entry.h }; })(); AXZ.home = { x: -13, y: DECK, z: -44, h: 0 };
-window.__dbg = { get CITY() { return CITY; }, camSync, setWires, setPower, set speed(v) { speed = v; document.getElementById("speed").value = v; }, get speed() { return speed; }, dimTags, show, applyShow, PILLARS, FRAME, CVIEWS, setRails, makeCar, setFollow, say, renderer, CARS, addCar, removeCar, STRIPS, CURBS, SV, chaseCam, CAM, BODY, PILLARS, flipCar, WIRES, DECOR, haloPin, haloHover, GP, setBody, resetCar, RAILG, DRAILS, get place() { return place; }, P: { CVx: CV.exit, RBe: RB.entry, RBx: RB.exit, WLx: WL.exit, FEe: FE.entry, FEx: FE.exit, B1e: B1.entry, B2x: B2.exit, TIx: TI.exit, ti: tiEntry }, drv, setDrive, keys, surfaceAt, SURF, occ, stations, roads, INFOS, BEARINGS, setFollow, jump: k => { select(k); camera.position.copy(focusC); controls.target.copy(focusT); focusT = focusC = null; }, stations, car, course, scene, camera, controls, THREE, LW, tour, tourStart, tourGo,
+window.__dbg = { get CITY() { return CITY; }, CP, trackH, bumpCar, setGrid, gridSpot, GRID, camSync, setWires, setPower, set speed(v) { speed = v; document.getElementById("speed").value = v; }, get speed() { return speed; }, dimTags, show, applyShow, PILLARS, FRAME, CVIEWS, setRails, makeCar, setFollow, say, renderer, CARS, addCar, removeCar, STRIPS, CURBS, SV, chaseCam, CAM, BODY, PILLARS, flipCar, WIRES, DECOR, haloPin, haloHover, GP, setBody, resetCar, RAILG, DRAILS, get place() { return place; }, P: { CVx: CV.exit, RBe: RB.entry, RBx: RB.exit, WLx: WL.exit, FEe: FE.entry, FEx: FE.exit, B1e: B1.entry, B2x: B2.exit, TIx: TI.exit, ti: tiEntry }, drv, setDrive, keys, surfaceAt, SURF, occ, stations, roads, INFOS, BEARINGS, setFollow, jump: k => { select(k); camera.position.copy(focusC); controls.target.copy(focusT); focusT = focusC = null; }, stations, car, course, scene, camera, controls, THREE, LW, tour, tourStart, tourGo,
   tick: (n, dt) => { for (let i = 0; i < n; i++) tick(dt); }, get simT() { return simT; }, adv(T) { while (simT < T) tick(1 / 60); } };
 
 
@@ -4248,7 +4292,7 @@ const css = document.createElement("style"); css.textContent = `
 document.body.insertAdjacentHTML("beforeend", `<div class="g">
   <div id="gHud"><div class="box"><small class="gRace">Lap <span id="gLap">1</span> · <span id="gPos"></span></small><small class="gFree">Free run · unlimited boost</small><div class="big" id="gTime">0:00.00</div><div id="gBoost"><i></i></div>
       <label class="gFree" id="gSpdL">Speed <input id="gSpd" type="range" min="0.1" max="3" step="0.1" value="1"><b id="gSpdV">1.0×</b></label></div>
-    <div class="row"><button class="gb sm" id="gCam">Camera: Chase</button><button class="gb sm" id="gReset">Reset</button><button class="gb sm" id="gFlip">Flip</button><button class="gb sm" id="gQuit">Quit</button></div></div>
+    <div class="row"><button class="gb sm" id="gCam">Camera</button><button class="gb sm" id="gReset">Reset</button><button class="gb sm" id="gFlip">Flip</button><button class="gb sm" id="gQuit">Quit</button></div></div>
   <div class="gPad" id="gL"><button data-k="a">◀</button><button data-k="d">▶</button></div>
   <div class="gPad" id="gR"><button data-k="boost">Boost</button><button data-k="jump">Jump</button><button data-k="s">Brake</button><button data-k="w">Gas</button></div>
   <div id="gBig"></div><div class="gBar" id="gBarT"></div><div class="gBar" id="gBarB"></div><div id="gNote"></div><div id="gScr"><div class="card" id="gCard"></div></div></div>`);
@@ -4266,7 +4310,7 @@ $("gSpd").oninput = e => { d.speed = +e.target.value; $("gSpdV").textContent = (
 for (const b of document.querySelectorAll(".gPad button")) { const k = b.dataset.k, set = v => { d.keys[k] = v; b.classList.toggle("on", v); };
   b.addEventListener("pointerdown", e => { e.preventDefault(); b.setPointerCapture(e.pointerId); set(true); }); for (const ev of ["pointerup", "pointercancel", "lostpointercapture"]) b.addEventListener(ev, () => set(false)); b.addEventListener("contextmenu", e => e.preventDefault()); }
 $("gReset").onclick = () => d.resetCar(); $("gFlip").onclick = () => d.flipCar();
-$("gCam").onclick = () => { d.CAM.view = ((d.CAM.view || 0) + 1) % d.CVIEWS.length; $("gCam").textContent = "Camera: " + d.CVIEWS[d.CAM.view][0]; };
+$("gCam").onclick = () => { d.CAM.view = ((d.CAM.view || 0) + 1) % d.CVIEWS.length; $("gCam").textContent = "Camera: " + d.CVIEWS[d.CAM.view][0]; }; $("gCam").textContent = "Camera: " + d.CVIEWS[d.CAM.view || 0][0];
 
 // ---------- sound: everything is synthesised here, nothing is loaded ----------
 let AC = null, master = null, mus = null, nbuf = null;
@@ -4290,7 +4334,7 @@ let shown = null; const show = html => { if (html !== shown || scr.style.display
 const flash = (s, stay) => { big.textContent = s; big.className = ""; void big.offsetWidth; big.className = stay ? "stay" : "pop"; if (stay) big.style.opacity = 1; else big.style.opacity = ""; }, note = s => { $("gNote").textContent = s || ""; $("gNote").style.display = s ? "block" : "none"; };
 let name = ""; try { name = localStorage.getItem("crr-name") || ""; } catch (e) {}
 let mode = null, phase = "menu", laps = 2, ghost = false, free = false, best = null; try { best = +localStorage.getItem("crr-best") || null; } catch (e) {}
-const menu = () => { phase = "menu"; mode = null; hud(false); note(""); big.style.opacity = 0; big.className = ""; D.hold = true; rules(false); orbit(); music(null);
+const menu = () => { phase = "menu"; mode = null; hud(false); note(""); big.style.opacity = 0; big.className = ""; D.hold = true; rules(false); d.setGrid(0); orbit(); music(null);
   show(`${head}<h1>Chicago <b>Robot Race</b></h1><div class="bar"></div><div class="bar"></div><p>Drive the robot car round the Chicago track: the spinning top, the Ferris wheel, Lower Wacker, the Sears Tower spiral, the swinging axes.</p><button class="gb pri" id="mSP">Single player</button><button class="gb" id="mMP">Multiplayer</button>`);
   $("mSP").onclick = () => { audio(); askName(() => { mode = "sp"; setup(); }); }; $("mMP").onclick = () => { audio(); askName(mpMenu); }; };
 const askName = next => { show(`<h2>Your name</h2><p>Shown to the other players and on the leaderboard.</p><input id="mName" maxlength="60" placeholder="Type any name" value="${esc(name)}"><button class="gb pri" id="mOk">Continue</button><button class="gb" id="mBack">Back</button>`);
@@ -4305,16 +4349,31 @@ let t = 0, lap = 1, away = false, finT = null, cine = null, cnt = null, celeb = 
 finOK = () => phase !== "intro" && phase !== "count" && phase !== "race";   // lights and confetti are for a finish, not for the start or a lap in passing
 const SHOTS = (() => { const mid = k => { const s = d.stations.find(q => q.key === k); return s && s.exit ? [(s.entry.x + s.exit.x) / 2, (s.entry.z + s.exit.z) / 2] : [0, 0]; }, fe = mid("ferris"), ax = mid("axes");
   return [["Ferris Wheel", fe[0], 8, fe[1], 19, 5, 9, .6, 1.5], ["Sears Tower", 11, 9, 12, 24, 3, 17, 2.4, 3.4], ["Swinging Axes", ax[0], 4.5, ax[1], 12, 3, 5, 4.2, 5.1], ["Start your engines", S0.x, S0.y + 1, S0.z, 15, 9, 3.2, S0.h + 2.2, S0.h + Math.PI]]; })();
-const grid = i => { const fx = Math.cos(S0.h), fz = -Math.sin(S0.h), r = (i >> 1) * 1.9, s = (i % 2 ? .6 : -.6) * (i === 0 && mode === "sp" ? 0 : 1); return [S0.x - fx * r - fz * s, S0.y, S0.z - fz * r + fx * s, S0.h]; };
+let gridN = 1;   // how many cars start (multiplayer: the host's count, the same for everyone)
+const grid = i => { if (mode === "mp" && gridN > 1) return d.gridSpot(i, gridN);   // several players: all on one line across the start, which is widened to take them
+  const fx = Math.cos(S0.h), fz = -Math.sin(S0.h), r = (i >> 1) * 1.9, s = (i % 2 ? .6 : -.6) * (i === 0 && mode === "sp" ? 0 : 1); return [S0.x - fx * r - fz * s, S0.y, S0.z - fz * r + fx * s, S0.h]; };
 // (the chase camera only runs while follow is on, and the orbit in the menus turns follow off: so follow is switched on here)
-function startRace(i) { hide(); note(""); big.style.opacity = 0; big.className = ""; d.orbitSet(false); if (!D.on) d.setDrive(true); if (!D.chase) $("chaseBtn").click(); d.setFollow(true); gridI = i; const g = grid(i); d.setBody(g[0], g[1], g[2], g[3], 0); D.hold = true;
+function startRace(i) { hide(); note(""); big.style.opacity = 0; big.className = ""; d.orbitSet(false); if (!D.on) d.setDrive(true); if (!D.chase) $("chaseBtn").click(); d.setFollow(true); bl = null; d.car.rate = 1; d.setGrid(mode === "mp" ? gridN : 0); gridI = i; const g = grid(i); d.setBody(g[0], g[1], g[2], g[3], 0); D.hold = true;
   t = 0; lap = 1; lapT0 = 0; bestLap = null; away = false; finT = null; celeb = 0; seen.clear(); $("gLap").textContent = "1/" + laps; $("gTime").textContent = fmt(0); rules(free); $("gQuit").textContent = free && mode === "mp" && isHost ? "End free run" : "Quit";
   if (free) { phase = "free"; D.hold = false; d.camSync(); music("race"); hud(true); flash("Free run"); return; }   // free run: no film, no countdown, straight in
   phase = "intro"; cine = { t: 0 }; document.body.classList.add("cine"); music("intro"); hud(false); }
 // the finish: no stop. The moment the line is crossed the autopilot takes the wheel and the car carries on round the track, hopping and looking from side to side the whole time:
 // through the wait for the others, the leaderboard, the lobby and the menus, until the next game starts
+// The hand-over is seamless. The autopilot starts at once from the nearest point of the course, and for the first moment it runs the road at the speed you crossed the line with,
+// easing down to its own (no step in speed, and the slowing itself starts from nothing). What is shown is the autopilot's car plus whatever difference is left
+// in place, sideways speed and attitude, and that difference is let go like a critically damped spring
+let bl = null; const _a = V(0, 0, 0), _qa = new T.Quaternion(), _qp = new T.Quaternion(), _qi = new T.Quaternion(), BW = 1.7;
+const blShow = () => { const m = d.car.mesh, w = (1 + BW * bl.t) * Math.exp(-BW * bl.t); m.updateWorldMatrix(true, false); m.getWorldPosition(_a); m.getWorldQuaternion(_qa); const ya = _a.y; _a.add(bl.o); if (_a.y < ya) _a.y = ya;
+  _qi.identity().slerp(bl.dq, w); _qa.multiply(_qi); if (m.parent) { m.parent.updateWorldMatrix(true, false); m.parent.worldToLocal(_a); m.parent.getWorldQuaternion(_qp); _qa.premultiply(_qp.invert()); } m.position.copy(_a); m.quaternion.copy(_qa); m.updateMatrixWorld(true); };
+d.FRAME.p = dt => { if (!bl) return; const m = d.car.mesh; m.updateWorldMatrix(true, false); m.getWorldPosition(_a);
+  if (bl.first) { const el = d.simT - bl.s0; if (el <= 0) return; bl.first = false; dt = el; const dA = _a.clone().sub(bl.a), la = dA.length();   // now the autopilot's own speed and direction are known
+    bl.o.addScaledVector(bl.ov, dt).sub(dA); if (la > 1e-5) { dA.multiplyScalar(1 / la); const va = la / dt, vp = Math.max(0, bl.ov.dot(dA)); bl.r0 = Math.min(9, Math.max(1, vp / va)); bl.ov.addScaledVector(dA, -va * bl.r0); } else bl.r0 = 1; }
+  else { bl.ov.addScaledVector(bl.ov, -2 * BW * dt).addScaledVector(bl.o, -BW * BW * dt); bl.o.addScaledVector(bl.ov, dt); }
+  bl.t += dt; { const u = Math.min(1, bl.t / 1.3), e = u * u * u * (u * (6 * u - 15) + 10); d.car.rate = 1 + (bl.r0 - 1) * (1 - e); } blShow(); if (bl.t > 7) { bl = null; d.car.rate = 1; } };
 const finishRace = () => { finT = t; phase = "done"; music(null); jingle(); flash("FINISH!", true); if (bestLap && (!best || bestLap < best)) { best = bestLap; try { localStorage.setItem("crr-best", String(best)); } catch (e) {} }
-  hud(false); d.setDrive(false); d.setFollow(true); celeb = .001;
+  hud(false); { const m = d.car.mesh; m.updateWorldMatrix(true, false); const p0 = m.getWorldPosition(V(0, 0, 0)), q0 = m.getWorldQuaternion(new T.Quaternion()), v0 = D.v.clone(); d.setDrive(false, true); m.updateWorldMatrix(true, false);
+    const a = m.getWorldPosition(V(0, 0, 0)), qa = m.getWorldQuaternion(new T.Quaternion()); bl = { o: p0.sub(a), ov: v0, a, dq: qa.invert().multiply(q0), t: 0, first: true, s0: d.simT, r0: 1 }; blShow(); }
+  d.setFollow(true); celeb = .001;
   setTimeout(() => { if (phase !== "done") return; big.style.opacity = 0; big.className = ""; if (mode === "sp") setTimeout(() => { if (phase === "done") results(); }, 5200); else note("Waiting for the other racers…"); }, 1900); };
 const results = () => { phase = "results"; note(""); music("results"); hud(false); let rows;
   if (mode === "sp") rows = `<li><span>✶ ${esc(name)}</span><b>${finT != null ? fmt(finT) : "—"}</b></li>` + (bestLap ? `<li><span><small>Best lap this race</small></span><small>${fmt(bestLap)}</small></li>` : "") + (best ? `<li><span><small>Your best lap ever</small></span><small>${fmt(best)}</small></li>` : "");
@@ -4370,10 +4429,10 @@ async function enter(c, host) { show(`<h2>Joining…</h2>`); try { lob = await r
   lob.onPeers(onLobby, () => { lob = null; clearRem(); menu(); }); phase = "lobby"; lobbyScr(); }
 async function leaveLobby() { const l = lob; lob = null; clearRem(); if (l) l.leave().catch(() => {}); if (room) room.presence({ lob: null, host: null }).catch(() => {}); if (!D.on && !celeb) d.setDrive(true); menu(); }
 const hostSet = p => { if (isHost && lob) { lob.presence(p).catch(() => {}); if (p.ph && room) room.presence({ ph: p.ph }).catch(() => {}); } };
-function lobbyScr() { if (!lob) return; phase = "lobby"; hud(false); note(""); big.style.opacity = 0; big.className = ""; music(null); rules(false); orbit(); D.hold = true; const ps = lob.peers(), me = ps.find(p => p.isMe && p.sameTab), others = ps.filter(p => !p.presence.h), all = others.every(p => p.presence.r);
+function lobbyScr() { if (!lob) return; phase = "lobby"; hud(false); note(""); big.style.opacity = 0; big.className = ""; music(null); rules(false); d.setGrid(0); orbit(); D.hold = true; const ps = lob.peers(), me = ps.find(p => p.isMe && p.sameTab), others = ps.filter(p => !p.presence.h), all = others.every(p => p.presence.r);
   show(`<h2>${esc(hostP ? hostP.presence.n || "Player" : name)}'s lobby</h2><ul class="gl">${ps.map(p => `<li><span>${p.presence.h ? "★ " : ""}${esc(p.presence.n || "Player")}${p.isMe && p.sameTab ? " (you)" : ""}</span><small>${p.presence.h ? "host" : p.presence.r ? "ready" : "not ready"}</small></li>`).join("")}</ul>${modeRow(isHost)}${free ? "" : setRow(isHost)}<div class="gset"><span>Cars</span><div>${isHost ? `<button class="gb sm" id="gG">${ghost ? "Ghosts: pass through" : "Solid: can bump"}</button>` : `<b>${ghost ? "Ghosts" : "Solid"}</b>`}</div></div>` +
     (isHost ? `<button class="gb pri" id="lS" ${all ? "" : "disabled"}>${all ? free ? "Start the free run" : "Start the race" : "Waiting for everyone to be ready"}</button>` : `<button class="gb pri" id="lR">${me && me.presence.r ? "Ready ✓ (tap to undo)" : "Ready up"}</button>`) + `<button class="gb" id="lQ">Leave</button>`);
-  if (isHost) { const sset = () => hostSet({ s: { laps, ghost, free } }); bindLaps(sset); $("gG").onclick = () => { ghost = !ghost; sset(); lobbyScr(); }; $("gM").onclick = () => { free = !free; sset(); lobbyScr(); }; $("lS").onclick = () => hostSet({ ph: "intro", k: (hostP ? hostP.presence.k || 0 : 0) + 1 }); }
+  if (isHost) { const sset = () => hostSet({ s: { laps, ghost, free } }); bindLaps(sset); $("gG").onclick = () => { ghost = !ghost; sset(); lobbyScr(); }; $("gM").onclick = () => { free = !free; sset(); lobbyScr(); }; $("lS").onclick = () => hostSet({ ph: "intro", k: (hostP ? hostP.presence.k || 0 : 0) + 1, gn: lob.peers().length }); }
   else $("lR").onclick = () => lob.presence({ r: me && me.presence.r ? 0 : 1 }).catch(() => {}); $("lQ").onclick = leaveLobby; }
 function onLobby() { if (!lob) return; const ps = lob.peers(); hostP = ps.filter(p => p.presence.h === 1).sort((a, b) => a.peer < b.peer ? -1 : 1)[0] || null;
   if (!hostP) { if (ps.length > 1 || !isHost) { const gone = () => lob && !lob.peers().some(p => p.presence.h === 1); setTimeout(() => { if (gone()) setTimeout(() => { if (gone()) leaveLobby(); }, relay ? 4000 : 800); }, relay ? 12000 : 2500); } return; }
@@ -4383,7 +4442,7 @@ function onLobby() { if (!lob) return; const ps = lob.peers(); hostP = ps.filter
     const join = first && ph === "intro" && free;   // a free run is open to whoever arrives while it is going on
     if (first && ph !== "lobby" && !join) { spect = true; hide(); hud(false); orbit(); if (ph === "results") results(); else note("A race is under way. You join the next one."); }
     else if (ph === "lobby") { spect = false; if (!D.on && !celeb) d.setDrive(true); lob.presence(Object.assign(isHost ? {} : { r: 0 }, celeb ? {} : { c: null })).catch(() => {}); lobbyScr(); }   // (a car that finished goes on round the track, hopping, and the others go on seeing it; any other car is taken off their screens)
-    else if (ph === "intro") { myK = k; const ids = ps.map(p => p.peer).sort(), me = ps.find(p => p.isMe && p.sameTab); lob.presence({ in: k, f: null, l: 1, pr: 0 }).catch(() => {}); startRace(Math.max(0, ids.indexOf(me ? me.peer : ""))); }
+    else if (ph === "intro") { myK = k; gridN = Math.max(hostP.presence.gn || 1, ps.length); const ids = ps.map(p => p.peer).sort(), me = ps.find(p => p.isMe && p.sameTab); lob.presence({ in: k, f: null, l: 1, pr: 0 }).catch(() => {}); startRace(Math.max(0, ids.indexOf(me ? me.peer : ""))); }
     else if (ph === "results") { if (myK === k || spect) results(); } }
   else if (phase === "lobby") lobbyScr();
   if (isHost && ph !== "lobby" && ph !== "results") { const rs = ps.filter(p => p.presence.in === k); if (rs.length && rs.every(p => p.presence.f != null)) setTimeout(() => hostSet({ ph: "results" }), 2500); }
@@ -4391,12 +4450,12 @@ function onLobby() { if (!lob) return; const ps = lob.peers(); hostP = ps.filter
 // the other players' cars
 const clearRem = () => { for (const r of REM.values()) d.scene.remove(r.m); REM.clear(); };
 function syncRem(ps) { const live = new Set(); for (const p of ps) { if (p.isMe && p.sameTab || !p.presence.c || p.presence.in !== lastK) continue; live.add(p.peer); let r = REM.get(p.peer);
-    if (!r) { const m = d.makeCar(); m.traverse(o => { if (o.isMesh) { o.castShadow = false; if (ghost) { o.material = o.material.clone(); o.material.transparent = true; o.material.opacity = .32; o.material.depthWrite = false; } } }); m.userData.remote = true; d.scene.add(m); r = { m, p: V(0, 0, 0), q: new T.Quaternion(), first: true }; REM.set(p.peer, r); }
-    const c = p.presence.c; r.p.set(c[0], c[1], c[2]); r.q.set(c[3], c[4], c[5], c[6]); if (r.first) { r.m.position.copy(r.p); r.m.quaternion.copy(r.q); r.first = false; } }
+    if (!r) { const m = d.makeCar(); m.traverse(o => { if (o.isMesh) { o.castShadow = false; if (ghost) { o.material = o.material.clone(); o.material.transparent = true; o.material.opacity = .32; o.material.depthWrite = false; } } }); m.userData.remote = true; d.scene.add(m); r = { m, p: V(0, 0, 0), q: new T.Quaternion(), v: V(0, 0, 0), w: V(0, 0, 0), pr: V(0, 0, 0), t0: 0, first: true }; r.b = { p: m.position, q: m.quaternion, v: r.v, w: r.w, cd: 0 }; REM.set(p.peer, r); }
+    const c = p.presence.c, cv = p.presence.v; if (c[0] !== r.p.x || c[1] !== r.p.y || c[2] !== r.p.z || r.first) r.t0 = performance.now(); r.p.set(c[0], c[1], c[2]); r.q.set(c[3], c[4], c[5], c[6]); if (cv) { r.v.set(cv[0], cv[1], cv[2]); r.w.set(0, cv[3] || 0, 0); } else { r.v.set(0, 0, 0); r.w.set(0, 0, 0); } if (r.first) { r.m.position.copy(r.p); r.m.quaternion.copy(r.q); r.first = false; } }
   for (const [id, r] of REM) if (!live.has(id)) { d.scene.remove(r.m); REM.delete(id); } }
 
 // ---------- every frame ----------
-const P = V(0, 0, 0), Q = new T.Quaternion(), _n = V(0, 0, 0), boostEl = document.querySelector("#gBoost i");
+const P = V(0, 0, 0), Q = new T.Quaternion(), _n = V(0, 0, 0), boostEl = document.querySelector("#gBoost i"), pubV = [0, 0, 0, 0], pubL = { x: 0, y: 0, z: 0, t: 0 };
 let eggOn = false;
 d.FRAME.g = dt => {
   // while one of the hidden films plays, the game stands still: no clock, no controls on screen
@@ -4408,11 +4467,12 @@ d.FRAME.g = dt => {
   else if (phase === "race" || phase === "free") { t += dt; if (D.zone) seen.add(D.zone); const dist = Math.hypot(D.p.x - fin.g.position.x, D.p.z - fin.g.position.z); if (dist > 12) away = true;
     if (phase === "race" && away && dist < 3.2 && seen.size >= 5) { away = false; seen.clear(); const lt = t - lapT0; lapT0 = t; if (!bestLap || lt < bestLap) bestLap = lt; if (lap >= laps) finishRace(); else { lap++; flash(lap === laps ? "Final lap" : "Lap " + lap); $("gLap").textContent = lap + "/" + laps; } }
     $("gTime").textContent = fmt(t); boostEl.style.width = D.boost + "%";
-    if (mode === "mp" && !ghost) for (const r of REM.values()) { _n.set(D.p.x - r.m.position.x, 0, D.p.z - r.m.position.z); const dd = _n.length(); if (dd < 1.45 && dd > .01 && Math.abs(D.p.y - r.m.position.y) < 1.4) { _n.multiplyScalar(1 / dd); D.p.addScaledVector(_n, (1.45 - dd) * .5); const vn = D.v.dot(_n); if (vn < 0) D.v.addScaledVector(_n, -vn * 1.5); D.v.addScaledVector(_n, 1.2); } } }
-  if (celeb) { celeb += dt; const m = d.car.mesh; m.position.y += Math.abs(Math.sin(celeb * 5.5)) * .55; m.rotation.y += Math.sin(celeb * 2.6) * .42; m.rotation.z += Math.sin(celeb * 5.5) * .07; }   // (it stops only when the next game starts)
-  for (const r of REM.values()) { const k = 1 - Math.exp(-dt * 12); r.m.position.lerp(r.p, k); r.m.quaternion.slerp(r.q, k); }
-  if (lob && (phase === "race" || phase === "free" || phase === "done" || phase === "count" || phase === "intro" || celeb)) { pubT += dt; if (pubT > .07) { pubT = 0; d.car.mesh.getWorldPosition(P); d.car.mesh.getWorldQuaternion(Q); const r2 = v => Math.round(v * 100) / 100, r3 = v => Math.round(v * 1000) / 1000;
-      lob.presence({ c: [r2(P.x), r2(P.y), r2(P.z), r3(Q.x), r3(Q.y), r3(Q.z), r3(Q.w)], l: lap, pr: lap * 100 + seen.size, f: finT }).catch(() => {});
+    if (mode === "mp" && !ghost) for (const r of REM.values()) { const j = d.bumpCar(r.b, dt); if (j > .4 && audio()) { tone(38, AC.currentTime, .16, "sine", Math.min(.5, .12 + j * .12)); hat(AC.currentTime, Math.min(.25, j * .08)); } } }   // car against car: a real exchange of momentum (see the map's bumpCar)
+  if (celeb) { celeb += dt; const m = d.car.mesh, k = Math.min(1, celeb / 2.6), e = k * k * (3 - 2 * k); m.position.y += Math.abs(Math.sin(celeb * 5.5)) * .55 * e; m.rotation.y += Math.sin(celeb * 2.6) * .42 * e; m.rotation.z += Math.sin(celeb * 5.5) * .07 * e; }   // (the hopping grows out of nothing over the first seconds)   // (it stops only when the next game starts)
+  for (const r of REM.values()) { const k = 1 - Math.exp(-dt * 14), a = Math.min(.25, (performance.now() - r.t0) / 1000); r.m.position.lerp(r.pr.copy(r.p).addScaledVector(r.v, a), k); r.m.quaternion.slerp(r.q, k); }   // each is shown where its last report and its speed say it is by now
+  if (lob && (phase === "race" || phase === "free" || phase === "done" || phase === "count" || phase === "intro" || celeb)) { pubT += dt; if (pubT > .07) { const el = pubT; pubT = 0; d.car.mesh.getWorldPosition(P); d.car.mesh.getWorldQuaternion(Q); const r2 = v => Math.round(v * 100) / 100, r3 = v => Math.round(v * 1000) / 1000;
+      if (D.on) { pubV[0] = D.v.x; pubV[1] = D.v.y; pubV[2] = D.v.z; pubV[3] = D.w.y; } else if (el > 0 && el < .5) { pubV[0] = (P.x - pubL.x) / el; pubV[1] = (P.y - pubL.y) / el; pubV[2] = (P.z - pubL.z) / el; pubV[3] = 0; } pubL.x = P.x; pubL.y = P.y; pubL.z = P.z;
+      lob.presence({ c: [r2(P.x), r2(P.y), r2(P.z), r3(Q.x), r3(Q.y), r3(Q.z), r3(Q.w)], v: pubV.map(r2), l: lap, pr: lap * 100 + seen.size, f: finT }).catch(() => {});
       const mine = lap * 100 + seen.size, rs = racers(); $("gPos").textContent = rs.length > 1 ? (1 + rs.filter(p => !(p.isMe && p.sameTab) && ((p.presence.f != null && finT == null) || (p.presence.pr || 0) > mine)).length) + "/" + rs.length : ""; } }
 };
 menu();
