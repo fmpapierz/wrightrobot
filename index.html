@@ -101,12 +101,14 @@ const smCache = {};
 function stripeMat(c1 = "#ff6d00", c2 = "#ffffff") { const k = c1 + c2; return smCache[k] ||= new THREE.MeshStandardMaterial({ map: stripeTex(c1, c2), roughness: .45, metalness: .25 }); }
 const SH = { motor: ["#ff6d00", "#ffffff"], drive: ["#1e88e5", "#ffffff"], cam: ["#8e24aa", "#ffe082"], axle: ["#e53935", "#ffffff"], idle: ["#43a047", "#ffffff"] };
 // a plain steel shaft. One coloured line and one white line run along it, and a coloured band marks each end, so you can see it turn and which way.
+// The marks are paint: they are part of the shaft's own surface, with nothing standing off it
+const shaftMats = {};
+function shaftMat(cols, f) { const k = cols[0] + cols[1] + f; if (shaftMats[k]) return shaftMats[k]; const cv = document.createElement("canvas"); cv.width = 256; cv.height = 256; const x = cv.getContext("2d"), w = 256 * .8 / TAU;
+  x.fillStyle = "#c4cad1"; x.fillRect(0, 0, 256, 256); x.fillStyle = cols[0]; for (const y0 of [f * .5, 1 - f * 1.5]) x.fillRect(0, y0 * 256, 128, f * 256); x.fillRect(-w / 2, 0, w, 256); x.fillRect(256 - w / 2, 0, w, 256); x.fillStyle = cols[1]; x.fillRect(128 - w / 2, 0, w, 256);
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = THREE.RepeatWrapping; t.anisotropy = 4; return shaftMats[k] = new THREE.MeshStandardMaterial({ map: t, metalness: .35, roughness: .38 }); }
 function shaft(r, len, axis = "z", cols = SH.motor) {
-  const g = new THREE.Group(), q = new THREE.Group(); g.add(q);
-  q.add(mesh(new THREE.CylinderGeometry(r, r, len, 20, 1), M(0xc4cad1, { metalness: .45, roughness: .35 })));
-  const line = (col, a) => { const m = mesh(new THREE.BoxGeometry(r * .8, len * .995, .012), M(col, { roughness: .5 })); m.castShadow = false; m.position.set(Math.sin(a) * (r - .003), 0, Math.cos(a) * (r - .003)); m.rotation.y = a; q.add(m); };
-  line(cols[0], 0); line(cols[1], Math.PI);
-  for (const sy of [-1, 1]) { const b = mesh(new THREE.CylinderGeometry(r + .004, r + .004, Math.min(.08, len * .12), 20, 1, true, 0, Math.PI), M(cols[0], { roughness: .5, side: THREE.DoubleSide })); b.castShadow = false; b.position.y = sy * (len / 2 - Math.min(.08, len * .12)); q.add(b); }
+  const g = new THREE.Group(), q = new THREE.Group(); g.add(q); const steel = M(0xc4cad1, { metalness: .45, roughness: .35 });
+  q.add(mesh(new THREE.CylinderGeometry(r, r, len, 24, 1), [shaftMat(cols, Math.round(Math.min(.08, len * .12) / len * 200) / 200), steel, steel]));
   if (axis === "x") q.rotation.z = -HP; else if (axis === "z") q.rotation.x = HP;
   return g;
 }
@@ -1577,25 +1579,50 @@ function buildFinish(pose) {
   g.add(at(cyl(.035, .03, 0xff5252, "z", 10), 0, SY, -1.56)); g.add(at(cyl(.035, .03, 0x222222, "z", 10), 0, SY, 1.56));
   const beam = mesh(cylGeo(.012, 3.1, 6, "z"), M(0xff2222, { emissive: 0xff0000, transparent: true, opacity: .6 })); beam.castShadow = false; at(beam, 0, SY, 0); g.add(beam);
   em.terms = { vcc: new V3(.1, .04, -.06), gnd: new V3(.1, -.04, -.06) }; rc.terms = { vcc: new V3(.1, .05, .06), gnd: new V3(.1, 0, .06), out: new V3(.1, -.05, .06) };
-  // confetti cannons: 12V blower under a loaded tube
-  const cannons = [-1, 1].map(sg => { const zc = sg * 1.6, o = { sg };
-    g.add(part(at(box(.5, .3, .42, 0x1e1e1e), 0, TY + .6, zc), "PUMP"));
-    o.imp = mesh(cylGeo(.13, .05, 16, "x"), stripeMat("#00bcd4", "#ffffff")); at(o.imp, .26, TY + .6, zc); g.add(o.imp);
-    o.tube = new THREE.Group(); at(o.tube, 0, TY + .75, zc); o.tube.rotation.set(-sg * .38, 0, -.24); g.add(o.tube);
-    const tm = new THREE.Mesh(new THREE.CylinderGeometry(.2, .17, .9, 20, 1, true), M(0xf5c518, { side: THREE.DoubleSide })); tm.position.y = .45; tm.castShadow = true; o.tube.add(tm);
-    o.load = at(cyl(.185, .05, 0xff4fa3), 0, .82, 0); o.tube.add(o.load);
-    o.box = at(new THREE.Object3D(), 0, TY + .52, zc + sg * .24); g.add(o.box); o.terms = { p: new V3(-.05, 0, 0), n: new V3(.05, 0, 0) };
+  // confetti cannons, one at each end of the beam. Each is one finished unit on a bolted base plate: a small centrifugal blower (round housing, intake facing the cars, motor behind),
+  // a ribbed hose from the blower up into the breech, and a flared barrel that swivels in a yoke on a ball. The barrel wears the city's flag: white, two blue bands, red stars
+  const flagTex = (() => { const cv = document.createElement("canvas"); cv.width = 512; cv.height = 256; const q = cv.getContext("2d"), V = y => 256 - (y - .05) / .85 * 256; q.fillStyle = "#f6f4ec"; q.fillRect(0, 0, 512, 256);
+    q.fillStyle = "#30343b"; q.fillRect(0, V(.17), 512, 256); q.fillStyle = "#74b9e6"; for (const [a, b] of [[.24, .33], [.57, .66]]) q.fillRect(0, V(b), 512, V(a) - V(b)); q.fillStyle = "#d3342b"; q.fillRect(0, 0, 512, V(.75));
+    for (let k = 0; k < 4; k++) { q.save(); q.translate(64 + k * 128, V(.45)); q.scale(1, .43); q.beginPath(); for (let i = 0; i < 12; i++) { const a = i * Math.PI / 6 - HP, r = i % 2 ? 17 : 38; q.lineTo(Math.cos(a) * r, Math.sin(a) * r); } q.closePath(); q.fill(); q.restore(); }
+    const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = THREE.RepeatWrapping; t.anisotropy = 8; return t; })();
+  const confTex = (() => { const cv = document.createElement("canvas"); cv.width = cv.height = 128; const q = cv.getContext("2d"), r = (() => { let a = 77; return () => (a = a * 16807 % 2147483647) / 2147483647; })(), cs = ["#ff3b6b", "#ffd23f", "#3ecf8e", "#3b82f6", "#ffffff", "#ff8a00", "#a855f7"]; q.fillStyle = "#ff4fa3"; q.fillRect(0, 0, 128, 128);
+    for (let i = 0; i < 520; i++) { q.save(); q.translate(r() * 128, r() * 128); q.rotate(r() * 6.28); q.fillStyle = cs[(r() * cs.length) | 0]; q.fillRect(-5, -3, 10, 6); q.restore(); } const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; return t; })();
+  const GRAPH = M(0x30343b, { metalness: .55, roughness: .4 }), STEEL = MET(0xc9cfd6), GOLD = M(0xd9a441, { metalness: .75, roughness: .28 }), BARREL = new THREE.MeshStandardMaterial({ map: flagTex, roughness: .32, metalness: .15, side: THREE.DoubleSide });
+  const cannons = [-1, 1].map(sg => { const zc = sg * 1.5, o = { sg }, C = new THREE.Group(); at(C, 0, TY + .45, zc); C.scale.z = sg; g.add(C);          // built once, mirrored for the other end (local +z points outward, toward the post)
+    C.add(at(box(.4, .04, 1.0, GRAPH), 0, .02, 0)); for (const x of [-.16, .16]) for (const z of [-.45, .45]) C.add(at(cyl(.024, .022, STEEL, "y", 10), x, .05, z));                                        // base plate and its four bolts
+    // the blower
+    const B = new THREE.Group(); at(B, 0, .225, .2); C.add(part(B, "PUMP"));
+    B.add(cyl(.165, .2, M(0x2f4459, { metalness: .6, roughness: .32 }), "x", 32)); B.add(at(box(.22, .07, .26, GRAPH), 0, -.15, 0));                                                                    // housing on its saddle
+    B.add(at(mesh(new THREE.TorusGeometry(.105, .017, 10, 32).rotateY(HP), STEEL), -.1, 0, 0)); B.add(at(cyl(.09, .012, 0x15181c, "x", 24), -.097, 0, 0));                                             // intake ring, dark throat
+    o.imp = mesh(cylGeo(.082, .014, 24, "x"), stripeMat("#00bcd4", "#ffffff")); at(o.imp, -.105, 0, 0); B.add(o.imp); B.add(at(cyl(.022, .03, GOLD, "x", 12), -.118, 0, 0));                            // the fan you see turn, and its hub
+    B.add(at(cyl(.085, .15, STEEL, "x", 24), .175, 0, 0)); B.add(at(cyl(.062, .02, 0x22252b, "x", 20), .26, 0, 0)); for (const a of [.6, 2.2, 3.8, 5.4]) B.add(at(cyl(.012, .15, 0x22252b, "x", 6), .175, Math.sin(a) * .086, Math.cos(a) * .086));   // motor, end cap, cooling ribs
+    // the yoke and the ball the barrel swivels on
+    const PV = new V3(0, .37, -.2); for (const x of [-.165, .165]) { C.add(at(box(.026, .3, .15, GRAPH), x, .19, PV.z)); C.add(at(cyl(.075, .026, GRAPH, "x", 20), x, PV.y, PV.z)); C.add(at(cyl(.046, .03, 0xd3342b, "x", 16), x + Math.sign(x) * .028, PV.y, PV.z)); }
+    C.add(at(cyl(.026, .34, STEEL, "x", 12), 0, PV.y, PV.z)); C.add(at(mesh(new THREE.SphereGeometry(.125, 24, 16), GRAPH), 0, PV.y, PV.z));
+    // ribbed hose from the top of the blower into the ball
+    const hc = new THREE.QuadraticBezierCurve3(new V3(0, .37, .2), new V3(0, .6, .14), new V3(0, PV.y + .085, PV.z + .09)), hose = mesh(new THREE.TubeGeometry(hc, 20, .05, 12), M(0x1b1d21, { roughness: .8 })); C.add(hose);
+    for (const u of [.06, .2, .34, .48, .62, .76, .9]) { const p = hc.getPoint(u), tn = hc.getTangent(u), rg = mesh(new THREE.TorusGeometry(.053, .009, 6, 18), u === .06 || u === .9 ? STEEL : M(0x2a2d33, { roughness: .7 })); rg.position.copy(p); rg.quaternion.setFromUnitVectors(new V3(0, 0, 1), tn); C.add(rg); }
+    // the barrel: neck, straight bore, flared muzzle with a rolled lip
+    o.tube = new THREE.Group(); o.tube.position.copy(PV); o.tube.rotation.set(-.38, 0, -.24); C.add(o.tube);
+    const prof = []; for (let i = 0; i <= 34; i++) { const y = .05 + i * .025, r = y < .16 ? .085 : y < .22 ? .085 + (y - .16) / .06 * .02 : y < .6 ? .105 : .105 + .095 * Math.pow((y - .6) / .3, 2); prof.push(new THREE.Vector2(r, y)); }
+    const tm = mesh(new THREE.LatheGeometry(prof, 40), BARREL); o.tube.add(tm);
+    o.tube.add(at(mesh(new THREE.TorusGeometry(.2, .017, 10, 40).rotateX(HP), GOLD), 0, .9, 0)); for (const y of [.19, .605]) o.tube.add(at(mesh(new THREE.TorusGeometry(y < .3 ? .1 : .108, .012, 8, 36).rotateX(HP), GOLD), 0, y, 0));
+    o.tube.add(at(mesh(new THREE.CircleGeometry(.104, 28).rotateX(-HP), new THREE.MeshBasicMaterial({ color: 0x0b0d10 })), 0, .56, 0));                                                              // the dark of the bore
+    o.load = mesh(new THREE.SphereGeometry(.186, 28, 8, 0, TAU, 0, HP), new THREE.MeshStandardMaterial({ map: confTex, roughness: .9 })); o.load.scale.y = .22; o.load.castShadow = false; at(o.load, 0, .845, 0); o.tube.add(o.load);   // the charge of confetti, heaped in the muzzle
+    // where the two wires land: a small terminal block at the outer end of the plate
+    C.add(at(box(.2, .07, .08, 0x2e8b57), 0, .075, .44)); for (const x of [-.05, .05]) C.add(at(cyl(.02, .02, STEEL, "y", 8), x, .115, .44));
+    o.box = at(new THREE.Object3D(), 0, TY + .525, zc + sg * .44); g.add(o.box); o.terms = { p: new V3(-.05, 0, 0), n: new V3(.05, 0, 0) };
     return o; });
   const nano = nanoBoard(); at(nano, 1.5, 0, -3.5); nano.rotation.y = Math.PI; g.add(nano);                                    // the Nano sits on the side the sensor wires climb, the MOSFETs on the side of the LED strip
   const mos = mosfetModule(); at(mos, -1.3, 0, -3.5); g.add(mos);
   tag(g, "Arduino Nano", 1.5, .6, -3.5); tag(g, "MOSFET switches (lights / pumps)", -1.3, .7, -3.5); tag(g, "break-beam sensor", 0, SY + .5, 1.9); tag(g, "12V LED strip", -.3, 5, -PZ);
-  tag(g, "confetti cannon: 12V air pump + tube", 0, TY + 2, 1.6);
+  tag(g, "confetti cannon: 12V blower + swivel barrel", 0, TY + 2, 1.5);
   conn(s, [nano, nano.terms.d5], [mos, mos.terms.s1], WC.green, .018, 0); conn(s, [nano, nano.terms.d6], [mos, mos.terms.s2], WC.green, .018, .05); conn(s, [nano, nano.terms.gnd2], [mos, mos.terms.sg], WC.neg, .018, .1);
   conn(s, [mos, mos.terms.o1P], [leds[0], new V3(0, -.12, -.03)], WC.pos, .025, 0, { via: [[-.19, null, -PZ - .03]], viaOut: [-1, 0] });
   conn(s, [mos, mos.terms.o1N], [leds[0], new V3(0, -.12, .03)], WC.neg, .025, .06, { via: [[-.19, null, -PZ + .03]], viaOut: [-1, 0] });
   cannons.forEach((cn, i) => {
-    conn(s, [mos, mos.terms.o2P], [cn.box, cn.terms.p], WC.pos, .025, .12 + .12 * i, { via: [[-.05, .07, cn.sg * (PZ + .19)], [-.05, TY + .52, cn.sg * (PZ + .19)]], viaOut: [0, cn.sg] });
-    conn(s, [mos, mos.terms.o2N], [cn.box, cn.terms.n], WC.neg, .025, .18 + .12 * i, { via: [[.05, .07, cn.sg * (PZ + .19)], [.05, TY + .52, cn.sg * (PZ + .19)]], viaOut: [0, cn.sg] }); });
+    conn(s, [mos, mos.terms.o2P], [cn.box, cn.terms.p], WC.pos, .025, .12 + .12 * i, { via: [[-.05, .07, cn.sg * (PZ + .19)], [-.05, TY + .525, cn.sg * (PZ + .19)]], viaOut: [0, cn.sg] });
+    conn(s, [mos, mos.terms.o2N], [cn.box, cn.terms.n], WC.neg, .025, .18 + .12 * i, { via: [[.05, .07, cn.sg * (PZ + .19)], [.05, TY + .525, cn.sg * (PZ + .19)]], viaOut: [0, cn.sg] }); });
   conn(s, [nano, nano.terms.v5], [em, em.terms.vcc], WC.red, .02, -.06, { via: [[.19, null, -PZ + .05]], viaOut: [1, 0] }); conn(s, [nano, nano.terms.gnd2], [em, em.terms.gnd], WC.neg, .02, -.12, { via: [[.19, null, -PZ + .1]], viaOut: [1, 0] });
   conn(s, [nano, nano.terms.v5], [rc, rc.terms.vcc], WC.red, .02, -.18, { via: [[.19, null, PZ - .1]], viaOut: [1, 0] }); conn(s, [nano, nano.terms.gnd2], [rc, rc.terms.gnd], WC.neg, .02, -.24, { via: [[.19, null, PZ - .05]], viaOut: [1, 0] });
   conn(s, [nano, nano.terms.d2], [rc, rc.terms.out], WC.yellow, .02, -.3, { via: [[.19, null, PZ]], viaOut: [1, 0] });
@@ -2576,6 +2603,7 @@ renderer.setAnimationLoop(() => {
   const dt = Math.min(clock.getDelta(), .05);
   if (toastT > 0 && (toastT -= dt) <= 0) toast.style.display = "none"; hoverTick(); dimHover(); if (!drv.on) boostFX.update(dt);
   if (playing || drv.on) { const steps = Math.ceil(speed * dt / .02); for (let i = 0; i < steps; i++) tick(speed * dt / steps); }
+  if ((playing || drv.on) && CITY.tick) CITY.tick(speed * dt);   // the aircraft at the airfield
   if (tour.on) tourTick(dt);
   else if (follow && drv.chase && (drv.on || CAM.auto)) chaseCam(dt);
   else if (follow) { car.mesh.getWorldPosition(ctgt); cpos.subVectors(ctgt, lastCar); camera.position.add(cpos); controls.target.add(cpos); lastCar.copy(ctgt); }   // shift by exactly what the car moved: no snapping back
@@ -2624,7 +2652,7 @@ const LANDMARKS = {};
   // sheathed in ribbed steel with rows of narrow slot windows and a glass cap; the other three are three-storey concrete buildings. Two round skywalks, one at the second floor
   // and one at the third, run from the pyramid into each of the two buildings beside it. One of those two has a small courtyard, set cornerwise; the building opposite has a low hipped roof
   LANDMARKS.wright = ctx => { const G = site(ctx, "wright"); if (!G) return; const H = new THREE.Group(); H.rotation.y = Math.PI / 4; G.add(H); const B = 2.9, b = 2.3, gp = .5, FL = .34, PH = 1.55, pc = gp / 2 + B / 2, bc = gp / 2 + b / 2;
-    H.add(bx(.5, .065, 5.7, 0xe3ddd0, 0, .033, -.3), bx(5.7, .065, .5, 0xe3ddd0, .3, .033, 0));   // the two walks that cross between the buildings (the grass is the city's own, the same green as everywhere else)
+    // (grass runs between the buildings: the city's own, the same green as everywhere else)   // the two walks that cross between the buildings (the grass is the city's own, the same green as everywhere else)
     // one face of the pyramid, drawn flat: the ribs run straight up the slope, two seams cross it, and the windows sit in four rows (6, 6, 3 + 3, 4); the top is the glass cap
     const face = tex(512, 512, (q, w, h) => { const gd = q.createLinearGradient(0, h, 0, 0); gd.addColorStop(0, "#c3cbd2"); gd.addColorStop(.6, "#d9dfe4"); gd.addColorStop(1, "#e6eaee"); q.fillStyle = gd; q.fillRect(0, 0, w, h);
       for (let x = 0; x < w; x += 7) { q.fillStyle = "rgba(60,74,88,.34)"; q.fillRect(x, 0, 1, h); q.fillStyle = "rgba(255,255,255,.35)"; q.fillRect(x + 1, 0, 1, h); }
@@ -2753,20 +2781,96 @@ const LANDMARKS = {};
     const ws = new THREE.Shape(); ws.moveTo(.25, 0); ws.lineTo(-.25, 1.15); ws.lineTo(-.5, 1.15); ws.lineTo(-.3, 0); ws.lineTo(-.5, -1.15); ws.lineTo(-.25, -1.15); ws.closePath(); const w = lm(new THREE.ExtrudeGeometry(ws, { depth: .035, bevelEnabled: false }).rotateX(-HP), M(0xdfe3e6, { roughness: .5 })); P.add(at(w, .1, -.07, 0));
     const hs = new THREE.Shape(); hs.moveTo(.1, 0); hs.lineTo(-.12, .45); hs.lineTo(-.26, .45); hs.lineTo(-.18, 0); hs.lineTo(-.26, -.45); hs.lineTo(-.12, -.45); hs.closePath(); P.add(at(lm(new THREE.ExtrudeGeometry(hs, { depth: .03, bevelEnabled: false }).rotateX(-HP), M(0xdfe3e6)), -1.25, .05, 0));
     const fs = new THREE.Shape(); fs.moveTo(.12, 0); fs.lineTo(-.22, .5); fs.lineTo(-.4, .5); fs.lineTo(-.3, 0); fs.closePath(); P.add(at(lm(new THREE.ExtrudeGeometry(fs, { depth: .04, bevelEnabled: false }), M(c, { roughness: .5 })), -1.12, .1, -.02)); P.add(bx(1.3, .05, .325, c, .1, -.06, 0).translateY(.0));
-    for (const z of [-.42, .42]) { const e = lm(new THREE.CylinderGeometry(.07, .07, .32, 10).rotateZ(HP), M(0x9aa3ab, { metalness: .5 })); P.add(at(e, .12, -.17, z)); } P.position.y = .3; const O = new THREE.Group(); O.add(P); return O; };
+    for (const z of [-.42, .42]) { const e = lm(new THREE.CylinderGeometry(.07, .07, .32, 10).rotateZ(HP), M(0x9aa3ab, { metalness: .5 })); P.add(at(e, .12, -.17, z)); }
+    // landing gear (folds up into the belly), and the lights: red on the left wingtip, green on the right, a white strobe on the fin, a red beacon on the back
+    const gear = new THREE.Group(); gear.position.y = -.14; for (const [x, z] of [[.62, 0], [-.12, -.2], [-.12, .2]]) { gear.add(at(lm(new THREE.CylinderGeometry(.016, .016, .115, 6), M(0xaab2b9, { metalness: .5 })), x, -.0575, z)); gear.add(at(lm(new THREE.CylinderGeometry(.045, .045, x > 0 ? .035 : .06, 12).rotateX(HP), M(0x1c1e22, { roughness: .9 })), x, -.115, z)); } P.add(gear);
+    const lamp = (col, x, y, z, r = .028) => { const m = new THREE.Mesh(new THREE.SphereGeometry(r, 8, 6), new THREE.MeshBasicMaterial({ color: col })); m.position.set(x, y, z); P.add(m); return m; };
+    lamp(0xff3b30, -.26, -.05, -1.15); lamp(0x35e06a, -.26, -.05, 1.15); const strobe = lamp(0xffffff, -1.5, .6, 0, .032), beacon = lamp(0xff4030, -.2, .17, 0);
+    P.position.y = .3; const O = new THREE.Group(); O.add(P); O.userData = { gear, strobe, beacon }; return O; };
+
+  // ---------- the airfield at work ----------
+  // Three airliners fly the same round, a third of it apart. Each lines up on the long runway, holds, runs up and rotates, climbs out over the south edge, flies a left-hand circuit
+  // of the whole table (east along the south side, north up the lake shore, west along the north side, south again, once round the tower), goes out to the west,
+  // turns back onto the runway heading and comes down the glide slope. It flares, touches down, brakes, turns round at the far end, taxis back along the runway,
+  // crosses by the short runway to the parallel strip, comes back along it, and waits at the holding point until the runway is clear.
+  // The whole round is one path sampled closely; along it the speed obeys limits on acceleration, braking and cornering, the bank in a turn is the one that balances it
+  // at that speed (tan = v^2 / (g r)), the nose follows the flight path plus the extra the wing needs when slow, and the wheels fold away after take-off
+  const airTraffic = (ctx, cols) => { const [A, B] = ctx.RUN[0], L0 = Math.hypot(B[0] - A[0], B[1] - A[1]), u = [(B[0] - A[0]) / L0, (B[1] - A[1]) / L0], Y0 = .035, V3 = THREE.Vector3;
+    const dir = S => { const l = Math.hypot(S[1][0] - S[0][0], S[1][1] - S[0][1]); return [(S[1][0] - S[0][0]) / l, (S[1][1] - S[0][1]) / l]; }, RW = (t, o = 0, w = [0, 0]) => [A[0] + u[0] * t + w[0] * o, A[1] + u[1] * t + w[1] * o];
+    const strips = [ctx.RUN[1], ...(ctx.SEC || [])].filter(Boolean), isPar = S => { const e = dir(S); return Math.abs(e[0] * u[1] - e[1] * u[0]) < .2; }, side = strips.find(isPar);
+    let wv = [-u[1], u[0]], off = 0; if (side) { off = (side[0][0] - A[0]) * wv[0] + (side[0][1] - A[1]) * wv[1]; if (off < 0) { wv = [-wv[0], -wv[1]]; off = -off; } }
+    // where each crossing strip meets the runway (t along it) and the parallel strip
+    const X = strips.filter(S => !isPar(S)).map(S => { let e = dir(S); if (e[0] * wv[0] + e[1] * wv[1] < 0) e = [-e[0], -e[1]]; const den = u[0] * e[1] - u[1] * e[0], t = ((S[0][0] - A[0]) * e[1] - (S[0][1] - A[1]) * e[0]) / den, k = off / (e[0] * wv[0] + e[1] * wv[1]), K = RW(t); return { e, t, K, K2: [K[0] + e[0] * k, K[1] + e[1] * k] }; }).filter(c => c.t > 3.4 && c.t < L0 - 6).sort((a, b) => b.t - a.t);
+    // the ground: poses (point, heading) joined by smooth curves
+    const R = .5, r = .9, tE = L0 - 4.6, tS = 2.15, poses = [], po = (p, d) => poses.push([p[0], p[1], d[0], d[1]]), nu = [-u[0], -u[1]], nw = [-wv[0], -wv[1]], add2 = (p, d, k) => [p[0] + d[0] * k, p[1] + d[1] * k];
+    po(RW(tE), u); po(RW(tE + 1.1, R, wv), u); po(RW(tE + 1.1 + R), nw); po(RW(tE + 1.1, -R, wv), nu); po(RW(tE - .5), nu); let hold = -1;
+    if (side && X.length >= 2) { const c1 = X[0], c2 = X[X.length - 1], ne2 = [-c2.e[0], -c2.e[1]];
+      po(RW(c1.t + r), nu); po(add2(c1.K, c1.e, r), c1.e); po(add2(c1.K2, c1.e, -r), c1.e); po(add2(c1.K2, nu, r), nu); po(add2(c2.K2, u, r), nu); po(add2(c2.K2, ne2, r), ne2);
+      hold = poses.length; po(add2(c2.K, c2.e, 2.7), ne2); po(add2(c2.K, c2.e, r), ne2); po(RW(c2.t - r), nu); }
+    po(RW(.75 + 1.3, -R * .0), nu); po(RW(.75, -R, wv), nu); po(RW(.75 - R), wv); po(RW(.75, R, wv), u); po(RW(tS), u);
+    const G = [], gHold = []; for (let i = 0; i + 1 < poses.length; i++) { const a = poses[i], b = poses[i + 1], d = Math.hypot(b[0] - a[0], b[1] - a[1]), h = d * .39, n = Math.max(2, Math.ceil(d / .06)); if (i === hold) gHold.push(G.length);
+      for (let k = i ? 1 : 0; k <= n; k++) { const q = k / n, m = 1 - q, c0 = m * m * m, c1 = 3 * m * m * q, c2 = 3 * m * q * q, c3 = q * q * q; G.push(new V3(c0 * a[0] + c1 * (a[0] + a[2] * h) + c2 * (b[0] - b[2] * h) + c3 * b[0], Y0, c0 * a[1] + c1 * (a[1] + a[3] * h) + c2 * (b[1] - b[3] * h) + c3 * b[1])); } }
+    // the air: take-off along the runway, the circuit, the glide back down to it
+    const tLO = 16, tTD = 3.5, gs = .096, rp = (t, y) => { const p = RW(t); return new V3(p[0], Y0 + y, p[1]); }, wp = (x, y, z) => new V3(x, Y0 + y, z), Tc = SPc, orb = (deg, y, R = 18) => wp(Tc[0] + R * Math.cos(deg * Math.PI / 180), y, Tc[1] + R * Math.sin(deg * Math.PI / 180));
+    const lf = [u[1], -u[0]], bc = add2(RW(-56), lf, 9), onb = (hx, hz, y) => wp(bc[0] - hz * 9, y, bc[1] + hx * 9);          // the base turn: a circle of radius 9 that ends on the runway heading
+    const F = [rp(tS, 0), rp(5, 0), rp(8, 0), rp(11, 0), rp(13.5, 0), rp(tLO, 0), rp(18.3, .2), rp(21, .62), rp(24, 1.25), rp(27.5, 2.05), rp(31.5, 3.05), rp(36, 4.25),
+      wp(-6, 6.2, 70.5), wp(10, 8.3, 71), wp(26, 10.3, 65), wp(38, 12, 54), wp(43, 13.3, 38), wp(43, 14.2, 18), wp(42.5, 14.8, -4), wp(41, 15, -24), wp(33, 15, -40), wp(16, 15, -46), wp(-4, 15, -45), wp(-18, 15.2, -38), wp(-24, 15.5, -22), wp(-20, 15.8, -4),
+      orb(172, 16), orb(135, 16), orb(90, 16), orb(45, 16), orb(0, 16), orb(-45, 16), orb(-90, 15.6), wp(-8, 13.6, -9.5), wp(-28, 11.5, -15), wp(-48, 9.4, -21.5), wp(-58, 8.4, -23.6),
+      onb(-1, 0, 7.6), onb(-.707, .707, 6.95), onb(0, 1, 6.27), ...[-56, -50, -44, -37, -30, -22, -14, -7].map(t => rp(t, (tTD - t) * gs)), rp(-2, .5), rp(1, .2), rp(tTD, 0), rp(6, 0), rp(9, 0), rp(13, 0), rp(17, 0), rp(tE, 0)];
+    const fc = new THREE.CatmullRomCurve3(F, false, "centripetal"), FP = fc.getSpacedPoints(Math.round(fc.getLength() / .2)); for (const p of FP) if (p.y < Y0) p.y = Y0;
+    const P = [...FP, ...G.slice(1)], n = P.length, iHold = gHold.length ? FP.length - 1 + gHold[0] : -1, S = new Float64Array(n), air = new Uint8Array(n); for (let i = 1; i < n; i++) S[i] = S[i - 1] + P[i].distanceTo(P[i - 1]);
+    let iLO = 0, iTD = FP.length - 1; for (let i = 0; i < FP.length; i++) { air[i] = P[i].y > Y0 + .004 ? 1 : 0; } for (let i = 1; i < FP.length; i++) if (air[i]) { iLO = i - 1; break; } for (let i = FP.length - 1; i > 0; i--) if (air[i]) { iTD = i + 1; break; }
+    // heading (unwrapped), curvature, speed
+    const psi = new Float64Array(n), kap = new Float64Array(n), W = 3; for (let i = 0; i < n; i++) { const a = P[Math.max(0, i - W)], b = P[Math.min(n - 1, i + W)]; let h = Math.atan2(-(b.z - a.z), b.x - a.x); if (i) { while (h - psi[i - 1] > Math.PI) h -= TAU; while (h - psi[i - 1] < -Math.PI) h += TAU; } psi[i] = h; }
+    for (let i = 0; i < n; i++) { const a = Math.max(0, i - W), b = Math.min(n - 1, i + W); kap[i] = (psi[b] - psi[a]) / Math.max(1e-6, S[b] - S[a]); }
+    const VC = 9.5, VTD = 5, VT = 1.7, v = new Float64Array(n), inAir = i => i > iLO && i < iTD, last = FP.length - 1;
+    for (let i = 0; i < n; i++) v[i] = i <= iLO || inAir(i) ? VC : i <= last ? Math.sqrt(Math.max(VT * VT, VTD * VTD - 2 * .75 * (S[i] - S[iTD]))) : Math.min(Math.abs(-(P[i].x - A[0]) * u[1] + (P[i].z - A[1]) * u[0]) > 1.3 ? .62 : VT, Math.sqrt(.42 / Math.max(1e-6, Math.abs(kap[i]))));   // (slower on the strips beside the runway than on the runway itself)
+    v[0] = v[n - 1] = 0; if (iHold > 0) v[iHold] = 0;
+    for (let i = 1; i < n; i++) v[i] = Math.min(v[i], Math.sqrt(v[i - 1] * v[i - 1] + 2 * (i <= iLO ? .8 : i <= iTD ? 1.0 : .45) * (S[i] - S[i - 1])));
+    for (let i = n - 2; i >= 0; i--) v[i] = Math.min(v[i], Math.sqrt(v[i + 1] * v[i + 1] + 2 * (i < iTD ? .45 : .7) * (S[i + 1] - S[i])));
+    // attitude: pitch = flight path + what the wing needs (more when slow), with the rotation before lift-off and the flare held a moment after touchdown; bank balances the turn
+    const smooth = (a, w) => { const o = new Float64Array(n), c = new Float64Array(n + 1); for (let i = 0; i < n; i++) c[i + 1] = c[i] + a[i]; for (let i = 0; i < n; i++) { const lo = Math.max(0, i - w), hi = Math.min(n - 1, i + w); o[i] = (c[hi + 1] - c[lo]) / (hi - lo + 1); } return o; };
+    let pit = new Float64Array(n), rol = new Float64Array(n); const sst = x => { x = clamp(x, 0, 1); return x * x * (3 - 2 * x); };
+    for (let i = 0; i < n; i++) { if (i > last) continue; const a = P[Math.max(0, i - 2)], b = P[Math.min(last, i + 2)], fpa = Math.atan2(b.y - a.y, Math.hypot(b.x - a.x, b.z - a.z) || 1e-6), hgt = P[i].y - Y0;
+      pit[i] = inAir(i) ? fpa + .03 + .06 * clamp((VC - v[i]) / 4.5, 0, 1) : i <= iLO ? .14 * sst((S[i] - (S[iLO] - 2.6)) / 2.6) : .09 * (1 - sst((S[i] - S[iTD]) / 3.2));
+      rol[i] = -clamp(Math.atan(v[i] * v[i] * kap[i] / 11), -.72, .72) * sst((hgt - .12) / 1.3); }
+    pit = smooth(smooth(pit, 6), 6); rol = smooth(smooth(rol, 16), 16);
+    // the clock: when each point of the round is reached. The wait at the holding point takes up whatever is left of the round
+    const TM = new Float64Array(n); for (let i = 1; i < n; i++) TM[i] = TM[i - 1] + 2 * (S[i] - S[i - 1]) / Math.max(.02, v[i] + v[i - 1]);
+    // The round is timed so that the three never want the runway together. A plane is 'on the runway' from turning onto it for the line-up until it has climbed clear, and from short final
+    // until it has turned off onto the crossing strip. The spacing between planes is set inside the range for which those times cannot overlap
+    const onRw = i => { const dx = P[i].x - A[0], dz = P[i].z - A[1], t = dx * u[0] + dz * u[1]; return P[i].y < Y0 + 1 && Math.abs(-dx * u[1] + dz * u[0]) < 1.3 && t > -1 && t < L0 + 1; };
+    let iClear = 0, iIn = 0, iOff = 0, iEnter = n - 1; while (iClear < n - 1 && onRw(iClear)) iClear++; iIn = iClear; while (iIn < n - 1 && !onRw(iIn)) iIn++; iOff = iIn; while (iOff < n - 1 && onRw(iOff)) iOff++; while (iEnter > iOff && onRw(iEnter - 1)) iEnter--;
+    const LINE = 2.5, tMove = TM[n - 1], bneg = tMove - TM[iEnter] + LINE, Phi = TM[iIn] - TM[iClear], Plo = (TM[iOff] + bneg) / 2, NP = iHold > 0 && Plo + 2.5 < Phi ? 3 : 1, T = NP === 3 ? 3 * (Plo + 1) : tMove + LINE + 14;   // (near the short end of the range: the next one to land then finds the holding point already empty)
+    const HOLD = iHold > 0 ? T - tMove - LINE : 0, tLift = TM[iLO], tDown = TM[iTD];
+    const at2 = (tau, out) => { let t = tau; if (iHold > 0 && t > TM[iHold]) t = Math.max(TM[iHold], t - HOLD); t = Math.min(t, TM[n - 1]); let lo = 0, hi = n - 1; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (TM[m] <= t) lo = m; else hi = m; }
+      const f = TM[hi] > TM[lo] ? clamp((t - TM[lo]) / (TM[hi] - TM[lo]), 0, 1) : 0; out.p.lerpVectors(P[lo], P[hi], f); out.yaw = psi[lo] + (psi[hi] - psi[lo]) * f; out.pitch = pit[lo] + (pit[hi] - pit[lo]) * f; out.roll = rol[lo] + (rol[hi] - rol[lo]) * f; out.v = v[lo] + (v[hi] - v[lo]) * f; out.air = tau > tLift && tau < tDown; return out; };
+    // the aircraft and the thin white trails off their wingtips
+    const NT = 44, planes = cols.slice(0, NP).map((c, k) => { const O = plane(c); O.scale.setScalar(.8); ctx.g.add(O); const tr = [-1, 1].map(() => { const ge = new THREE.BufferGeometry(); ge.setAttribute("position", new THREE.BufferAttribute(new Float32Array(NT * 3), 3)); ge.setAttribute("color", new THREE.BufferAttribute(new Float32Array(NT * 4), 4)); ge.setDrawRange(0, 0);
+        const ln = new THREE.Line(ge, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false })); ln.frustumCulled = false; ctx.g.add(ln); return { ln, pts: [] }; }); return { O, tr, ph: k * T / NP, acc: 0 }; });
+    const st = { p: new V3(), yaw: 0, pitch: 0, roll: 0, v: 0, air: false }, tip = new V3(); let clock = 0;
+    const tick = dt => { clock += dt; for (const pl of planes) { const tau = (clock + pl.ph) % T; at2(tau, st); pl.O.position.copy(st.p); pl.O.rotation.set(st.roll, st.yaw, st.pitch, "YZX");
+        const ud = pl.O.userData, gr = tau < tLift ? 1 : tau < tDown - 10 ? 1 - sst((tau - tLift - .7) / 1.7) : sst((tau - (tDown - 10)) / 1.7); ud.gear.scale.y = Math.max(.001, gr); ud.gear.visible = gr > .02;
+        ud.strobe.visible = (tau * 1.1) % 1 < .09 || ((tau * 1.1) % 1 > .18 && (tau * 1.1) % 1 < .26); ud.beacon.visible = (tau * .8) % 1 < .3;
+        pl.acc += dt; const fresh = st.air && st.p.y > Y0 + 1.2 && pl.acc > .045; if (fresh) pl.acc = 0; pl.O.updateMatrixWorld(true);
+        pl.tr.forEach((t, si) => { for (const q of t.pts) q.a += dt; while (t.pts.length && t.pts[0].a > 2.4) t.pts.shift(); if (fresh) { tip.set(-.2, .24, (si ? 1 : -1) * 1.15); pl.O.localToWorld(tip); ctx.g.worldToLocal(tip); t.pts.push({ x: tip.x, y: tip.y, z: tip.z, a: 0 }); if (t.pts.length > NT) t.pts.shift(); }
+          const pa = t.ln.geometry.attributes.position, ca = t.ln.geometry.attributes.color, m = t.pts.length; for (let i = 0; i < m; i++) { const q = t.pts[i]; pa.setXYZ(i, q.x, q.y, q.z); ca.setXYZW(i, 1, 1, 1, .55 * (1 - q.a / 2.4) * Math.min(1, (m - 1 - i) / 3 + .25)); } pa.needsUpdate = ca.needsUpdate = true; t.ln.geometry.setDrawRange(0, m); }); } };
+    tick(0); ctx.anim.push(tick); ctx.AIR = { seek: t => { clock = t; for (const pl of planes) for (const t2 of pl.tr) t2.pts.length = 0; tick(0); }, T, HOLD, NP, tLift, tDown, win: [TM[iClear], TM[iIn], TM[iOff], TM[iEnter], Plo, Phi], TM, S, v, P, iLO, iTD, iHold, n, last, at2, planes, rol, pit, kap }; };
+
   // Midway Airport: the terminal along the landside road with its three concourses reaching out onto the apron, airliners nose-in at the gates,
-  // the control tower, the hangars, and aircraft on the runways: one lined up to go, one climbing away, one taxiing
+  // the control tower, the hangars, and three aircraft that work the field: taking off, flying round the table, landing and taxiing back
   LANDMARKS.midway = ctx => { const s = ctx.SITES.midway; if (!s) return; const G = new THREE.Group(); G.position.set(s.x, .03, s.z); G.rotation.y = [0, HP, Math.PI, -HP][s.face || 0]; G.scale.setScalar(s.sc); ctx.g.add(G); ctx.LM.push({ key: "midway", name: "Midway Airport terminal", G });
     const gl = facade("#e3e8eb", "#3f6c8c", 26, 2, { mx: .06, my: .14, hh: .7 }), wh = mt(0xeef1f3, { roughness: .4, metalness: .2 }), z0 = -2.25, C = [0xe4573f, 0x2a66a8, 0xf2a53a, 0x3b8a62, 0x7b4fa8, 0x2a66a8, 0xe4573f, 0xf2a53a];
     G.add(fbox(10.2, 1.0, 1.5, gl, 0x9aa3ab, -.8, .5, z0), bx(10.6, .06, .8, 0xe9e4d8, -.8, .8, z0 - 1.1)); for (let k = 0; k < 9; k++) { const r = lm(new THREE.CylinderGeometry(.56, .56, 1.54, 18).rotateX(HP), wh); r.scale.y = .42; G.add(at(r, -.8 - 4.53 + k * 1.1325, 1.0, z0)); G.add(cy(.03, .8, 0xd3d9df, -.8 - 4.53 + k * 1.1325, .4, z0 - 1.42, 6)); }
     let n = 0; [-4.4, -.8, 2.8].forEach((x, i) => { G.add(fbox(.9, .6, 3.5, facade("#e3e8eb", "#3f6c8c", 3, 1, { hh: .6 }), 0x9aa3ab, x, .3, .25), cy(.62, .6, 0xdfe6ea, x, .3, 2.1, 20), cy(.66, .05, 0x9aa3ab, x, .625, 2.1, 20), bx(.3, .1, 3.3, wh, x, .65, .25));
       for (const sd of i ? [1] : [1, -1]) for (const zc of [-.45, 1.05]) { G.add(bx(.42, .13, .15, 0xb9c0c6, x + sd * .66, .42, zc), bx(.05, .42, .05, 0x8d969f, x + sd * .84, .21, zc)); const p = plane(C[n++ % 8]); p.scale.setScalar(.44); p.position.set(x + sd * 1.39, 0, zc); p.rotation.y = sd > 0 ? Math.PI : 0; G.add(p); } });
     G.add(cy(.26, 3.0, 0xd9d5cc, 5.6, 1.5, z0, 14, .2), cy(.34, .2, 0xbfb9ad, 5.6, 3.05, z0, 14, .5), cy(.52, .42, glass(0x2f4a60), 5.6, 3.36, z0, 14, .44), cy(.56, .07, 0xe9e4d8, 5.6, 3.6, z0, 14), cy(.02, .7, 0xd24a38, 5.6, 3.98, z0, 6), bx(.9, .5, .9, 0xd9d5cc, 5.6, .25, z0));
-    for (const z of [.6, 1.4, 2.2]) G.add(cy(.3, .5, 0xf1efe9, 5.6, .25, z, 16), cy(.31, .04, 0xc8322b, 5.6, .5, z, 16)); [[-2.7, 2.6, 0xf6c445], [1.0, 2.9, 0xffffff], [-5.6, 2.7, 0xe4573f], [4.3, -.2, 0xf6c445], [-2.9, -1.1, 0xffffff]].forEach(([x, z, c]) => G.add(bx(.26, .12, .14, c, x, .06, z)));
+    for (const z of [.6, 1.4, 2.2]) G.add(cy(.3, .5, 0xf1efe9, 5.6, .25, z, 16), cy(.31, .04, 0xc8322b, 5.6, .5, z, 16)); [[-2.7, 2.6, 0xf6c445], [1.0, 2.9, 0xffffff], [-5.6, 2.7, 0xe4573f], [5.0, .3, 0xf6c445], [-2.9, -1.2, 0xffffff]].forEach(([x, z, c]) => G.add(bx(.26, .12, .14, c, x, .06, z)));
     // out on the field (table coordinates): runway lights, and the aircraft
     const lights = [], ends = []; ctx.RUN.forEach(([a, b], i) => { const dx = b[0] - a[0], dz = b[1] - a[1], l = Math.hypot(dx, dz), ux = dx / l, uz = dz / l, yaw = -Math.atan2(dz, dx);
       for (let t = .6; t < l; t += 1.3) for (const sd of [-1, 1]) lights.push([a[0] + ux * t - uz * sd * .95, .07, a[1] + uz * t + ux * sd * .95]); for (let k = -3; k <= 3; k++) { ends.push([a[0] - uz * k * .25, .07, a[1] + ux * k * .25, 1, 1, 0, 0x4fe07a], [b[0] - uz * k * .25, .07, b[1] + ux * k * .25, 1, 1, 0, 0xff5a4a]); }
-      const p = plane(C[i + 4]); p.scale.setScalar(.8); if (i === 0) { p.position.set(a[0] + ux * 2.4, .03, a[1] + uz * 2.4); p.rotation.y = yaw; ctx.g.add(p); const q = plane(C[1]); q.scale.setScalar(.8); q.position.set(a[0] + ux * l * .74, 2.3, a[1] + uz * l * .74); q.rotation.set(0, yaw, .2); ctx.g.add(q); } else { p.position.set(a[0] + ux * l * .8, .03, a[1] + uz * l * .8); p.rotation.y = yaw + Math.PI; ctx.g.add(p); } });
+    });
+    try { airTraffic(ctx, [C[4], C[1], C[3]]); } catch (e) { console.warn("air traffic", e); }
     if (lights.length) { ctx.inst(new THREE.SphereGeometry(.05, 8, 6), new THREE.MeshBasicMaterial({ color: 0xfff4c8 }), lights, false); ctx.inst(new THREE.SphereGeometry(.055, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffffff }), ends, false); }
     const hm = mt(0xc9d0d6, { metalness: .4, roughness: .4 }); ctx.HANG.forEach((h, hi) => { const H = new THREE.Group(); H.position.set(h.x, .03, h.z); H.rotation.y = h.rot ? HP : 0; H.scale.setScalar(h.sc); ctx.g.add(H); ctx.LM.push({ key: "hang" + hi, name: "Hangar", G: H }); const r = lm(new THREE.CylinderGeometry(1.45, 1.45, 4.4, 28).rotateZ(HP), hm); r.scale.y = .78; H.add(at(r, 0, .22, 0)); for (const e of [-1, 1]) H.add(bx(.05, .8, 1.9, 0x56606b, e * 2.21, .4, 0), bx(.07, .06, 2.3, 0xe9c84a, e * 2.22, .84, 0)); for (let k = -3; k <= 3; k++) H.add(bx(.06, .02, 2.6, 0xaab2b9, k * .6, 1.34 - Math.abs(k) * .012, 0)); }); };
 
@@ -2920,7 +3024,7 @@ const CITY = (() => {
         if (n0 !== a0 || n1 !== a1) { ch = true; if (n1 - n0 < .5) SEG.splice(k, 1); else if (v) { s[1] = n0; s[3] = n1; } else { s[0] = n0; s[2] = n1; } } } if (!ch) break; } };
   // where a street ends at a landmark's forecourt it is cut square on the forecourt's edge (no rounded tip poking into the paving); any other end is a rounded turning head
   const caps = () => { for (const s of SEG) for (const e of [0, 1]) { const v = s[0] === s[2], sg = e ? 1 : -1, ex = s[e * 2], ez = s[e * 2 + 1], dx = v ? 0 : sg, dz = v ? sg : 0; s[4 + e] = 0; if (ex < TBL.x0 + .3 || ex > TBL.x1 - .3 || ez < TBL.z0 + .3 || ez > TBL.z1 - .3) { s[4 + e] = 1; continue; }   // at the edge of the table: cut square, flush with the edge
-      if (!inSite(ex + dx * (SW / 2 + .5), ez + dz * (SW / 2 + .5), 0)) continue;
+      const st = inSite(ex + dx * (SW / 2 + .5), ez + dz * (SW / 2 + .5), 0); if (!st) continue; if (st === "wright") continue;   // at the college's lawn a street simply ends, with a round end
       let t = 0; while (t < 1.6 && !inSite(ex + dx * t, ez + dz * t, .33)) t += .02; s[e * 2] = ex + dx * t; s[e * 2 + 1] = ez + dz * t; s[4 + e] = 1; } };
   const lay = () => { SEG.length = 0; for (const x of SX) runs(x, TBL.z0, x, TBL.z1); for (const z of SZ) runs(TBL.x0, z, TBL.x1, z); tidy(); caps(); }; lay();
   const onStreet = (x, z, m = .2) => SEG.some(s => x > Math.min(s[0], s[2]) - SW / 2 - m && x < Math.max(s[0], s[2]) + SW / 2 + m && z > Math.min(s[1], s[3]) - SW / 2 - m && z < Math.max(s[1], s[3]) + SW / 2 + m);
@@ -2947,7 +3051,7 @@ const CITY = (() => {
     // paving or planting under every landmark, meeting the streets round it
     for (const k in SITES) { if (k === "midway" || k.startsWith("hang")) continue; const s = SITES[k], park = k === "millennium" || k === "wright"; if (park) continue; c.fillStyle = "#dcd5c4"; c.beginPath(); c.roundRect(s.x - s.w / 2 - .35, s.z - s.d / 2 - .35, s.w + .7, s.d + .7, .6); c.fill(); if (!park) { c.strokeStyle = "#c2bba8"; c.lineWidth = .05; for (let a = s.x - s.w / 2; a < s.x + s.w / 2 + .3; a += .7) { c.beginPath(); c.moveTo(a, s.z - s.d / 2 - .3); c.lineTo(a, s.z + s.d / 2 + .3); c.stroke(); } } }
     // the airfield: dry mown grass, the two crossing runways in pale concrete, the shorter runway beside each, taxiways and the short links between them, aprons at the terminal and the hangars
-    { c.fillStyle = "#a9c283"; c.beginPath(); c.roundRect(MR.x0, MR.z0, MR.w, MR.d, 1.5); c.fill(); c.strokeStyle = "#d9d5c8"; c.lineWidth = .12; c.stroke();
+    {   // (the field is the same grass as the rest of the table, with no border round it)
       for (let i = 0; i < 260; i++) { rnd(); rnd(); rnd(); rnd(); }   /* one even colour, no mottling (the random numbers are still drawn so the rest of the city stays as it was) */
       const strip = (a, b, off, wd, col, cap = "butt") => { const dx = b[0] - a[0], dz = b[1] - a[1], l = Math.hypot(dx, dz), nx = -dz / l * off, nz = dx / l * off; c.strokeStyle = col; c.lineWidth = wd; c.lineCap = cap; c.beginPath(); c.moveTo(a[0] + nx, a[1] + nz); c.lineTo(b[0] + nx, b[1] + nz); c.stroke(); };
       const ALLR = [...RUN.map(r => [r, .875]), ...SEC.map(r => [r, .6])];
@@ -3030,7 +3134,7 @@ const CITY = (() => {
     inst(new THREE.BoxGeometry(1, 1, 1), [side, side, roof, roof, side, side], LOTS.map(l => [l[0], l[4] / 2 + .02, l[1], l[2], l[4], 0, HC[(rnd() * HC.length) | 0], l[3]])).userData.clip = true; g.children[g.children.length - 1].userData.dimOwner = h => "house:" + h.instanceId; }
 
   // ---------- the landmarks ----------
-  const LM = [], ctx = { g, add, inst, SITES, rnd, LX1, shore, cj, free, inWater, markRect, rectFree, resat, MR, RUN, HANG, LM };
+  const LM = [], anim = [], ctx = { g, add, inst, SITES, rnd, LX1, shore, cj, free, inWater, markRect, rectFree, resat, MR, RUN, SEC, HANG, LM, anim };
   for (const k in LANDMARKS) { try { LANDMARKS[k](ctx); } catch (e) { console.warn("landmark", k, e); } }
   FRAME.c = dt => { water.uniforms.uT.value += dt; };
   // the car cannot drive through the houses, the trees or the street lights (while the scenery is shown)
@@ -3060,7 +3164,7 @@ const CITY = (() => {
   const seg2 = (x, z, a, b) => { const dx = b[0] - a[0], dz = b[1] - a[1], t = Math.max(0, Math.min(1, ((x - a[0]) * dx + (z - a[1]) * dz) / (dx * dx + dz * dz))); return Math.hypot(x - a[0] - dx * t, z - a[1] - dz * t); };
   const ownerAt = (x, z) => { if (wm(x, z) > .4) return inLake(x, z) ? "lake" : "river"; const k = inSite(x, z, .3); if (k === "midway") { for (const q in SITES) { const s = SITES[q]; if ((q === "midway" || q.startsWith("hang")) && Math.abs(x - s.x) < s.w / 2 + .9 && Math.abs(z - s.z) < s.d / 2 + .9) return "lm:" + q; } for (let i = 0; i < RUN.length; i++) if (seg2(x, z, RUN[i][0], RUN[i][1]) < .9) return "run:" + i; for (let i = 0; i < SEC.length; i++) if (seg2(x, z, SEC[i][0], SEC[i][1]) < .65) return "sec:" + i; return "airfield"; }
     if (k) return "lm:" + k; for (let i = 0; i < SEG.length; i++) { const s = SEG[i]; if (seg2(x, z, [s[0], s[1]], [s[2], s[3]]) < SW / 2 + .1) return "st:" + i; } return "all"; };
-  return { g, SITES, occ, hard, mass, SEC, LINKS, LM, ownerAt, water, RIV, joined, SEG, MR, WET, wm, LOTS, RUN, HANG, TAXI };
+  return { g, SITES, occ, hard, mass, SEC, LINKS, LM, ownerAt, water, RIV, joined, SEG, MR, WET, wm, LOTS, RUN, HANG, TAXI, AIR: ctx.AIR, tick: dt => { if (g.visible) for (const f of anim) f(dt); } };
 })();
 
 
@@ -3247,7 +3351,7 @@ const MUR = (() => {
           wins(c, x + .1, Y, tw - .2, hs[i] - .9, r, { st: 0, px: .5, py: .62, lit, det, warm: wm });
           { const vd = viewSide(x0), jv = i + vd, nv = jv < 0 || jv > 2 ? 0 : back[jv]; if (det === 1 && hs[i] > nv) { const xe = vd > 0 ? x + tw : x, fw = 1.5, k = .95, fc = mixc(K(0x41699c), C.peach, wm * .35); P(c, [[xe, Y + nv], [xe + vd * fw, MUR.YH + (Y + nv - MUR.YH) * k], [xe + vd * fw, MUR.YH + (Y + hs[i] - MUR.YH) * k], [xe, Y + hs[i]]], fc);
               c.fillStyle = css(C.winD, .3); c.beginPath(); for (let yy = nv + .5; yy < hs[i] - 1; yy += .64) for (const u of [.3, .7]) c.rect(xe + vd * fw * u - .22, MUR.YH + (Y + yy - MUR.YH) * (1 - .07 * u), .44, .36); c.fill(); } }
-          R(c, x, Y + hs[i] - .8, tw, .8, C.black, .6); for (const b of [13, 25]) if (hs[i] > b + 2) R(c, x, Y + b, tw, .6, C.black, .5); } };
+          R(c, x, Y + hs[i] - .8, tw, .8, C.black, .6); for (const b of [13, 25]) if (hs[i] > b + 2) { const yb = Y + .45 + Math.round((b - .45) / .62) * .62 - .2; R(c, x, yb, tw + .02, .76, cc); R(c, x, yb, tw + .02, .76, C.black, .5); } } };   // each dark band takes the place of one whole row of windows: none show through it
       col(back, cb, 1, .45); col(front, cf, 2, .5);
       for (let i = 1; i < 3; i++) R(c, x0 + i * tw - .07, Y, .14, Math.min(front[i - 1], front[i]), C.black, .35);
       c.fillStyle = LG(c, 0, Y, 0, Y + 14, [[0, C.skyH, .22], [1, C.skyH, 0]]); c.fillRect(x0, Y, w, 14);
@@ -3342,7 +3446,7 @@ const MUR = (() => {
 
   const mart = x0 => { const w = 35, sd = sunSide(x0), wm = warm(x0), cx = x0 + w / 2; keep(x0, x0 + w);
     add(31, x0, x0 + w, c => { const col = mixc(mixc(C.stone, C.far, .42), C.peach, wm * .35), dk = K(0x36608f);
-      shaft(c, x0, w, 0, 12.2, col, { sd, wm, rows: 1.05 }); for (const [a, ww, hh] of [[x0, 4.6, 14], [x0 + w - 4.6, 4.6, 14], [cx - 4.2, 8.4, 17]]) shaft(c, a, ww, 0, hh, mixc(col, C.white, .1), { sd, wm });
+      shaft(c, x0, w, 0, 12.2, col, { sd, wm, rows: 1.05 }); for (const [a, ww, hh] of [[x0, 4.6, 14], [x0 + w - 4.6, 4.6, 14], [cx - 4.2, 8.4, 17]]) { shaft(c, a, ww, 12.2, hh, mixc(col, C.white, .1), { sd, wm }); R(c, a, Y, ww, 12.2, mixc(col, C.white, .1)); }   // the towers stand flush with the front below the roof line: their side faces show only above it, so nothing lies across the windows of the front
       c.fillStyle = css(dk, .78); c.beginPath(); for (let y = 2.6; y < 11.6; y += 1.05) for (let a = x0 + .7; a < x0 + w - .9; a += .82) c.rect(a, Y + y, .42, .62); for (let y = 12.4; y < 16; y += 1.05) for (let a = cx - 3.6; a < cx + 3.5; a += .82) c.rect(a, Y + y, .42, .62); c.fill();
       c.fillStyle = css(C.winW, .9); const r = mb(8); c.beginPath(); for (let k = 0; k < 150; k++) c.rect(x0 + .7 + ((r() * 41) | 0) * .82, Y + 2.6 + ((r() * 9) | 0) * 1.05, .42, .62); c.fill();
       R(c, x0, Y, w, 2.1, mixc(col, C.near, .3)); c.fillStyle = css(dk); c.beginPath(); for (let a = x0 + 1; a < x0 + w - 1.4; a += 2.2) c.roundRect(a, Y + .1, 1.3, 1.6, [0, 0, .65, .65]); c.fill();
@@ -3362,7 +3466,6 @@ const MUR = (() => {
       // crown: an octagonal lantern inside a ring of buttresses and pinnacles
       shaft(c, cx - 2.5, 5, 16.5, 21.3, mixc(col, C.white, .08), { sd, wm, fw: .8 }); c.fillStyle = css(dk, .8); c.beginPath(); for (const a of [-1.5, -.5, .5, 1.5]) c.roundRect(cx + a - .22, Y + 17.4, .44, 3, [0, 0, .22, .22]); c.fill();
       for (const a of [-4.1, -2.9, 2.9, 4.1]) { R(c, cx + a - .28, Y + 16.5, .56, 3.3 - Math.abs(a) * .25, col); P(c, [[cx + a - .34, Y + 19.8 - Math.abs(a) * .25], [cx + a + .34, Y + 19.8 - Math.abs(a) * .25], [cx + a, Y + 21.4 - Math.abs(a) * .25]], col); }
-      for (const s2 of [-1, 1]) L(c, [[cx + s2 * 4.1, Y + 18.4], [cx + s2 * 2.5, Y + 20.2]], .22, col);
       for (const a of [-2.3, -.8, .8, 2.3]) P(c, [[cx + a - .36, Y + 21.3], [cx + a + .36, Y + 21.3], [cx + a, Y + 23.2]], col);
       P(c, [[cx - 1.3, Y + 21.3], [cx + 1.3, Y + 21.3], [cx, Y + 24.4]], sh); L(c, [[cx, Y + 24], [cx, Y + 26.2]], .12, col); }); };
 
@@ -3595,8 +3698,9 @@ const ART = (() => {
   let built = false, fx = true; const GLOSS = [], FXP = [];
   const build = () => { built = true;
     // ----- walls -----
+    // (the four paintings are turned half way round the room: each wall carries the one painted for the wall opposite, so the skyline with the Sears Tower faces the start line)
     const rot = [HP, 0, -HP, Math.PI], pos = [[X0, tcz], [tcx, Z0], [X1, tcz], [tcx, Z1]];
-    for (let i = 0; i < 4; i++) { const m = nosh(new THREE.Mesh(new THREE.PlaneGeometry(MUR.WLEN[i], HWALL), new THREE.MeshBasicMaterial({ map: ctex(MUR.paint(i, LIGHTS[i])) }))); m.position.set(pos[i][0], YF + HWALL / 2, pos[i][1]); m.rotation.y = rot[i]; shell.add(m); }
+    for (let i = 0; i < 4; i++) { const m = nosh(new THREE.Mesh(new THREE.PlaneGeometry(MUR.WLEN[i], HWALL), new THREE.MeshBasicMaterial({ map: ctex(MUR.paint((i + 2) % 4, LIGHTS[i])) }))); m.position.set(pos[i][0], YF + HWALL / 2, pos[i][1]); m.rotation.y = rot[i]; shell.add(m); }
 
     // ----- ceiling: a tray with a lit cove round it, the same sky as the walls -----
     const kc = 2048 / RW, cv = mkc(2048, Math.round(RD * kc)), c = cv.getContext("2d"); c.setTransform(kc, 0, 0, -kc, 0, cv.height);     // x east, y north, in room units from the south-west corner
