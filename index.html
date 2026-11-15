@@ -1301,7 +1301,7 @@ function buildLowerWacker(a, b, mids) {
 
 // ---------------------------------------------------------------------
 // SLIDING BRIDGE – shuttle deck on two side rails, belt drive beside the road,
-// open chasm with a padded slide underneath (a fallen car rolls out to the side)
+// open chasm: nothing underneath (a car that drives into the gap drops to the table)
 // ---------------------------------------------------------------------
 function buildBridge(pose) {
   const s = makeStation("bridge", "Sliding Bridge · side-mounted shuttle", pose), g = s.g;
@@ -1327,12 +1327,7 @@ function buildBridge(pose) {
   const mot = gearMotor({ r: .3, gb: .45, can: .9, sl: .42 }); at(mot, xP, pY, BZ - .25); g.add(part(mot, "M320"));
   g.add(at(ringPlate(.7, .7, .04, .09, MET(COL.alu)), xP, pY, BZ - .23));
   g.add(at(box(.7, .08, 1.3, MET(COL.alu)), xP, pY - .36, BZ - .9)); postAt(g, xP, BZ - .9, pY - .4, .4);
-  // padded slide under the chasm: a car that falls lands on it and rolls out to the open side (+z), clear of every moving part
-  const CH0 = 2.3, CZ0 = -1.4, CZ1 = 1.25, cl = Math.hypot(CZ1 - CZ0, CH0 - .1), ca = Math.atan2(CH0 - .1, CZ1 - CZ0), cxm = (p0 + p1) / 2, clen = p1 - p0 - .7;
-  const chute = mesh(new THREE.BoxGeometry(clen, .06, cl), M(0x4f8fd0, { roughness: .9 })); chute.rotation.x = ca; at(chute, cxm, (CH0 + .1) / 2 - .03, (CZ0 + CZ1) / 2); g.add(chute);
-  for (const x of [p0 + .55, cxm, p1 - .55]) { g.add(at(box(.15, CH0 - .17, .15, COL.plyD), x, (CH0 - .17) / 2, CZ0 + .1)); g.add(at(box(.15, 1.1, .15, COL.plyD), x, .55, -.1)); }
-  for (const x of [p0 + .35, p1 - .35]) g.add(at(box(.04, .3, cl, M(0x3a6ea5)), x, (CH0 + .1) / 2 + .13, (CZ0 + CZ1) / 2).rotateX(ca));   // side lips
-  g.add(at(box(clen, .05, 2.2, M(0x5b9a4a, { roughness: 1 })), cxm, .025, CZ1 + 1.05));              // soft landing mat on the table
+  const cxm = (p0 + p1) / 2, clen = p1 - p0 - .7;   // (nothing stands or lies under the chasm)
   // end-stop switches on brackets off the end beams (+z side), pressed by the striker tabs
   // each switch stands upright on an angle bracket off its end beam, lever hanging down on the side that faces the bridge. The bridge's striker tab runs into the lever's roller and folds the lever flat against the switch.
   const SWY = DECK - .1, SWZ = 1.85, fA = p0 + .5 - .045, fB = p1 - .5 + .045;                // the faces the levers fold onto (just short of where each striker stops)
@@ -1352,14 +1347,12 @@ function buildBridge(pose) {
       conn(s, [ctl, tc], [sw, ts], WC.blue, .022, .08 * k, { via: [[xr, .07, T.z], [xr, yv, T.z], [T.x, yv, T.z]], viaOut: [sg, 0] }); }); }
   s.feed = [pwm, pwm.terms.inP, pwm.terms.inN];
   tag(g, "steel rail + linear bearings (both sides)", 7, RY + .35, RZ + .2); tag(g, "GT2 belt clamped to the drive arm", 7, pY - .45, BZ - .2); tag(g, "end-stop switch", 3.8, DECK + .4, 2.2); tag(g, "end-stop switch", 10.2, DECK + .4, 2.2);
-  tag(g, "12V gearmotor + pulley (beside the road)", xP, pY + .7, BZ - 1.2); tag(g, "bridge deck", 7, DECK + .6, 0); tag(g, "padded slide: a fallen car rolls out here", 7, .9, 1.6); tag(g, "idler pulley", xI, pY + .5, BZ - .3);
+  tag(g, "12V gearmotor + pulley (beside the road)", xP, pY + .7, BZ - 1.2); tag(g, "bridge deck", 7, DECK + .6, 0); tag(g, "idler pulley", xI, pY + .5, BZ - .3);
   addRect(br, Lb / 2 + .03, BWd / 2, DECK, 0, 0, { carry: true });
-  addSurf(g, 0, (x, z) => Math.abs(x - cxm) <= clen / 2 && z >= CZ0 - .05 && z <= CZ1, { yf: (x, z) => lerp(CH0, .1, clamp((z - CZ0) / (CZ1 - CZ0), 0, 1)), slick: true });   // the padded slide: a car that drops into the chasm lands on it and slides out
-  addRect(g, clen / 2, 1.1, .05, cxm, CZ1 + 1.05);                                                                                                           // and the landing mat
   sdim(s, "chasm", [p0, DECK + .7, 1.45], [p1, DECK + .7, 1.45]); sdim(s, "deck travel", [xA, DECK + 1.2, 0], [xB, DECK + 1.2, 0]); sdim(s, "rail spacing", [p0 + .55, RY + .2, -RZ], [p0 + .55, RY + .2, RZ]);
   sdim(s, "deck length", [-Lb / 2, DECK + .3, -1.35], [Lb / 2, DECK + .3, -1.35], null, br); sdim(s, "deck width", [1.2, DECK + .3, -BWd / 2], [1.2, DECK + .3, BWd / 2], null, br);
-  sdim(s, "slide drop", [p1 - .2, .1, CZ0], [p1 - .2, CH0, CZ0]); sdim(s, "pulley centres", [xP, pY - .5, BZ], [xI, pY - .5, BZ]);
-  sval(s, "rail length", fmtLen(p1 - p0 + .3)); sval(s, "belt loop length", fmtLen(2 * (xI - xP) + TAU * pr)); sval(s, "slide angle", Math.round(ca * 180 / Math.PI) + "°"); sval(s, "open height under the deck", fmtLen(DECK - .28)); sval(s, "one crossing at 1×", "3 s, then 3.5 s docked");
+  sdim(s, "pulley centres", [xP, pY - .5, BZ], [xI, pY - .5, BZ]);
+  sval(s, "rail length", fmtLen(p1 - p0 + .3)); sval(s, "belt loop length", fmtLen(2 * (xI - xP) + TAU * pr)); sval(s, "open height under the deck", fmtLen(DECK - .28)); sval(s, "one crossing at 1×", "3 s, then 3.5 s docked");
   const st = tag(g, "", 7, DECK + 2.2, 0, "state");
   const Td = 3.5, Tm = 3, P = 2 * (Td + Tm);
   s.update = t => {
@@ -1391,9 +1384,9 @@ function buildBridge(pose) {
   <li><b>Nothing is underneath.</b> The deck hangs between two 12 mm steel rails that run <b>beside</b> the road, one on each side, held by two end beams on posts. Two cross-beams under the deck each ride on a linear bearing at both rails, so the deck can only slide along the road.</li>
   <li>The drive is also at the side: a GT2 belt runs next to one rail, around a pulley on the gearmotor and an idler pulley at the far end. An arm from the deck is clamped to the belt, so when the motor turns, the deck slides.</li>
   <li>A reversing relay board runs the motor until a striker tab on the deck presses an end-stop switch, waits 3.5 s, then reverses it toward the other switch.</li>
-  <li><b>If a car drives into the gap</b>, it drops a short way onto a padded slide and rolls out sideways onto a mat on the open side of the table. It cannot get trapped and it cannot touch the rails, belt, motor or switches, because all of them are up at road level beside the road.</li>
+  <li><b>If a car drives into the gap</b>, it drops onto the table. It cannot touch the rails, belt, motor or switches, because all of them are up at road level beside the road.</li>
   <li>The car waits at the edge, drives onto the docked deck, rides across with it, and drives off once it docks on the far side.</li></ol>`;
-  s.parts = "12V gearmotor · GT2 20T pulley + idler + belt + clamp · 2× 12 mm rods on 2 end beams · 4× linear bearing block · 2 cross-beams + drive arm · 2 micro switches · reversing relay board with end-stop inputs · PWM controller · padded slide + mat";
+  s.parts = "12V gearmotor · GT2 20T pulley + idler + belt + clamp · 2× 12 mm rods on 2 end beams · 4× linear bearing block · 2 cross-beams + drive arm · 2 micro switches · reversing relay board with end-stop inputs · PWM controller";
   return s;
 }
 
@@ -2073,7 +2066,12 @@ const WLOC = WHEELS.map(([x, z]) => new V3(x, CP.wr - CP.com, z)), BOXC = [], BO
 for (const sx of [1, -1]) for (const y of [CP.y0, CP.y1]) for (const sz of [-1, 1]) BOXC.push(new V3(sx * CP.hx, y, sz * CP.hz));
 // the car's body for collisions with the ground, road edges and rails: a close grid of points all over its underside, and its top corners and edges
 for (let i = 0; i <= 10; i++) for (let j = -2; j <= 2; j++) BODY.push(new V3(-CP.hx + i * CP.hx / 5, CP.y0, j * CP.hz / 2)); const NBELLY = BODY.length;
-for (const sx of [1, 0, -1]) for (const sz of [-1, 0, 1]) if (sx || sz) BODY.push(new V3(sx * CP.hx, CP.y1, sz * CP.hz));
+// the top, each part at its own height: the rim of the upper plate, the tops of the tyres, the battery box and the shield, and the sensor head standing well above all of them at the front.
+// So a car that lands on its roof does not lie flat: it rests on the head and the battery box, nose up
+for (const sx of [1, 0, -1]) for (const sz of [-1, 0, 1]) if (sx || sz) BODY.push(new V3(sx * CP.hx, .065, sz * .35));
+for (const [x, z] of WHEELS) BODY.push(new V3(x, 2 * CP.wr - CP.com, z));
+for (const sz of [-1, 1]) BODY.push(new V3(-.62, .245, sz * .28), new V3(-.32, .245, sz * .28), new V3(-.21, .26, sz * .185), new V3(.25, .26, sz * .185), new V3(.565, CP.y1 + .015, sz * .15), new V3(.665, .355, sz * .085));
+BODY.push(new V3(.565, CP.y1 + .015, 0), new V3(.665, .565, 0));
 addEventListener("keyup", e => { const k = keyOf(e); if (k) keys[k] = false; });
 addEventListener("blur", () => { for (const k in keys) keys[k] = false; });
 const driveBtn = document.getElementById("drive"), toast = document.getElementById("toast"); let toastT = 0;
@@ -2292,9 +2290,9 @@ const camRay = new THREE.Raycaster(), OCCL = [], SV = { t: 0, over: false, off: 
 function clearView(t, az, el, dist) { if (!OCCL.length) scene.traverse(o => { if (o.isMesh && !o.isInstancedMesh && (Array.isArray(o.material) ? o.material.some(m => xrayMats.includes(m)) : xrayMats.includes(o.material))) OCCL.push(o); });
   const ce = Math.cos(el); camRay.set(t, _t4.set(ce * Math.cos(az), Math.sin(el), ce * Math.sin(az))); camRay.near = 1.1; camRay.far = dist; return camRay.intersectObjects(OCCL, false).length === 0; }
 // the views the chase camera can take: name, elevation, distance (a factor on the usual one, or a fixed distance when negative), how far ahead of the car it looks and how high, first person
-const CVIEWS = [["Chase", .5, 1, 1.2, .5], ["High chase", .8, 1.25, 2.6, .5], ["Far chase", .46, 1.8, 3.4, .6], ["Low chase", .2, .75, 2.8, .7], ["Close chase", .32, .48, 2, .6], ["Over the hood", .2, -2.7, 1.5, .62], ["First person", 0, 1, 0, 0, 1], ["Top down", 1.42, -17, .8, 0]];
+const CVIEWS = [["Chase", .5, 1, 1.2, .5], ["Low chase", .15, 1.08, 3.6, .62], ["High chase", .8, 1.25, 2.6, .5], ["Far chase", .46, 1.8, 3.4, .6], ["Close chase", .32, .48, 2, .6], ["Over the hood", .2, -2.7, 1.5, .62], ["First person", 0, 1, 0, 0, 1], ["Top down", 1.42, -17, .8, 0]];
 function camSpec(P, h, o, dt) {
-  const fx = Math.cos(h), fz = -Math.sin(h), sp = drv.mode === "drive" ? drv.v.length() : 0; o.az = Math.atan2(-fz, -fx); o.el = .5; o.dist = 7.5 + Math.min(5, sp * .25) + (drv.airT > .25 ? 2.5 : 0); o.t.set(P.x + fx * 1.2, P.y + .5, P.z + fz * 1.2);
+  const fx = Math.cos(h), fz = -Math.sin(h), sp = !drv.on ? 3 : drv.mode === "drive" ? drv.v.length() : 0; o.az = Math.atan2(-fz, -fx); o.el = .5; o.dist = 7.5 + Math.min(5, sp * .25) + (drv.airT > .25 ? 2.5 : 0); o.t.set(P.x + fx * 1.2, P.y + .5, P.z + fz * 1.2);
   { const cv = CVIEWS[CAM.view || 0]; o.fp = cv[5] === 1; if (CAM.view) { o.el = cv[1]; o.dist = cv[2] > 0 ? o.dist * cv[2] : -cv[2]; o.t.set(P.x + fx * cv[3], P.y + cv[4], P.z + fz * cv[3]); } if (o.fp) return; }
   const l = AX.g.worldToLocal(_t3.copy(P)); if (l.x > -1.2 && l.x < 9.5 && Math.abs(l.z) < 3.4 && Math.abs(P.y - DECK) < 3) { const hs = AX.entry.h, sx = Math.cos(hs), sz = -Math.sin(hs); o.az = Math.atan2(-Math.cos(hs), -Math.sin(hs)); o.el = .24; o.dist = 10.5; o.t.set(P.x + sx * 1.6, P.y + .6, P.z + sz * 1.6); return; }
   const ds = Math.hypot(P.x - SPc[0], P.z - SPc[1]); if (Math.abs(ds - SPR) > 2.6 || P.y > spTop + .6 || P.y < SPy0 - .6) { SV.over = false; SV.t = 0; return; }
@@ -2305,15 +2303,16 @@ const CLIPL = []; function clipList() { scene.updateMatrixWorld(true); const bb 
   scene.traverse(o => { if (!o.isMesh || skip.has(o) || !o.geometry) return; for (let q = o; q; q = q.parent) if (q === car.mesh || q === PLAIN) return; if (o.isInstancedMesh) { if (o.userData.clip) CLIPL.push(o); return; }
     const m = Array.isArray(o.material) ? o.material[0] : o.material; if (!m || m.transparent || m.isShaderMaterial || m.isMeshBasicMaterial) return; if (!o.geometry.boundingBox) o.geometry.computeBoundingBox(); bb.copy(o.geometry.boundingBox).applyMatrix4(o.matrixWorld).getSize(sz);
     if (bb.max.y > .1 && sz.y > .06 && Math.max(sz.x, sz.z) > 1.2 && Math.max(sz.x, sz.z) < 120 || xrayMats.includes(m)) CLIPL.push(o); }); }
-function chaseCam(dt) { car.mesh.getWorldPosition(ctgt); cpos.set(0, 1, 0).applyQuaternion(car.mesh.quaternion); if (cpos.y > .5) CAM.h = yawOf(car.mesh);
-  if (orbiting || CAM.hold > 0) { if (orbiting) CAM.hold = 2.5; else CAM.hold -= dt; cpos.subVectors(ctgt, lastCar); camera.position.add(cpos); controls.target.add(cpos); lastCar.copy(ctgt); camSync(); return; }   // you are looking round yourself: it waits, then eases back
+const _cq = new THREE.Quaternion();
+function chaseCam(dt) { car.mesh.getWorldPosition(ctgt); car.mesh.getWorldQuaternion(_cq); cpos.set(0, 1, 0).applyQuaternion(_cq); if (cpos.y > .5) CAM.h = yawOf(car.mesh);
+  if (orbiting || CAM.hold > 0) { if (orbiting) { CAM.hold = CAM.snap ? 0 : 2.5; if (CAM.snap) CAM.back = .8; } else CAM.hold -= dt; cpos.subVectors(ctgt, lastCar); camera.position.add(cpos); controls.target.add(cpos); lastCar.copy(ctgt); camSync(); return; }   // you are looking round yourself: it waits, then eases back (in the game it does not wait: let go and it swings straight back to the view you chose)
   camSpec(ctgt, CAM.h, SPEC, dt);
-  if (SPEC.fp) { _t1.set(0, 1, 0).applyQuaternion(car.mesh.quaternion); _t2.set(1, 0, 0).applyQuaternion(car.mesh.quaternion); camera.position.copy(ctgt).addScaledVector(_t1, 1.02).addScaledVector(_t2, .28); controls.target.copy(ctgt).addScaledVector(_t2, 6).addScaledVector(_t1, .6); lastCar.copy(ctgt); CAM.t.copy(controls.target); return; }   // the driver's eye
-  const k = 1 - Math.exp(-dt * 2.4); CAM.az += Math.atan2(Math.sin(SPEC.az - CAM.az), Math.cos(SPEC.az - CAM.az)) * k; CAM.el += (SPEC.el - CAM.el) * k; CAM.dist += (SPEC.dist - CAM.dist) * k; CAM.t.lerp(SPEC.t, 1 - Math.exp(-dt * 7));
+  if (SPEC.fp) { _t1.set(0, 1, 0).applyQuaternion(_cq); _t2.set(1, 0, 0).applyQuaternion(_cq); camera.position.copy(ctgt).addScaledVector(_t1, .8).addScaledVector(_t2, .78); controls.target.copy(ctgt).addScaledVector(_t2, 6.5).addScaledVector(_t1, .45); lastCar.copy(ctgt); CAM.t.copy(controls.target); return; }   // the driver's eye: just in front of the sensor head, so nothing of the car is in the way
+  const k = 1 - Math.exp(-dt * (CAM.back > 0 ? 9 : 2.4)); if (CAM.back > 0) CAM.back -= dt; CAM.az += Math.atan2(Math.sin(SPEC.az - CAM.az), Math.cos(SPEC.az - CAM.az)) * k; CAM.el += (SPEC.el - CAM.el) * k; CAM.dist += (SPEC.dist - CAM.dist) * k; CAM.t.lerp(SPEC.t, 1 - Math.exp(-dt * 7));
   let d = CAM.dist * CAM.zoom, el = CAM.el;
   // The camera never goes through the track or anything standing on the table. If something lies between the point looked at and the camera, it first tries swinging down lower behind the car
   // (under whatever is overhead) and only then comes in closer, to just this side of the obstacle; it eases back when the way is clear
-  { const P = drv.p, inSp = Math.abs(Math.hypot(P.x - SPc[0], P.z - SPc[1]) - SPR) < 2.6 && P.y > SPy0 - .6 && P.y < spTop + .6;   // this rule is for the spiral only: everywhere else the camera is left alone
+  { const P = drv.on ? drv.p : ctgt, inSp = Math.abs(Math.hypot(P.x - SPc[0], P.z - SPc[1]) - SPR) < 2.6 && P.y > SPy0 - .6 && P.y < spTop + .6;   // this rule is for the spiral only: everywhere else the camera is left alone
     if (!CLIPL.length) clipList(); const reach = e => { if (!inSp) return d; const c = Math.cos(e); camRay.set(CAM.t, _t4.set(c * Math.cos(CAM.az), Math.sin(e), c * Math.sin(CAM.az))); camRay.near = .25; camRay.far = d + .45; const hit = camRay.intersectObjects(CLIPL, false).find(h => { for (let q = h.object; q; q = q.parent) if (!q.visible) return false; return true; }); return hit ? Math.max(.7, hit.distance - .45) : d; };
     let want = el, best = reach(el); if (best < d - .05) for (const e of [el * .6, .24, .1]) { if (e >= want - .02) continue; const r = reach(e); if (r > best + .2) { best = r; want = e; } if (r >= d - .05) break; }
     CAM.elc = CAM.elc === undefined ? want : CAM.elc + (want - CAM.elc) * (1 - Math.exp(-dt * (want < CAM.elc ? 9 : 2.5))); el = Math.min(el, CAM.elc); const lim = Math.abs(el - want) < .01 ? best : reach(el);
@@ -2400,6 +2399,7 @@ function driveTick(dt) {
   if (drv.lowT > .25 || drv.flipT > 1) drv.fallen = true;
   if (drv.fallen && !drv.told && (still || drv.lowT > 2.5)) { drv.told = true; if (!drv.auto) say(drv.flipT > 1 ? "Flipped over · press R or Reset car" : "Off the track · press R or Reset car"); }
   if (drv.fallen && drv.auto && ((still && (drv.lowT > .9 || drv.flipT > 1.2)) || drv.lowT > 3.5)) resetCar(drv.axeHit ? "Knocked off by an axe · back to the start of the axes" : "Back on the road");
+  if (drv.free && ROOMB) { const P = drv.p, m = 1.1; if (P.x < ROOMB.x0 + m) { P.x = ROOMB.x0 + m; if (drv.v.x < 0) drv.v.x *= -.3; } if (P.x > ROOMB.x1 - m) { P.x = ROOMB.x1 - m; if (drv.v.x > 0) drv.v.x *= -.3; } if (P.z < ROOMB.z0 + m) { P.z = ROOMB.z0 + m; if (drv.v.z < 0) drv.v.z *= -.3; } if (P.z > ROOMB.z1 - m) { P.z = ROOMB.z1 - m; if (drv.v.z > 0) drv.v.z *= -.3; } }   // free run: the walls of the room are solid and nothing puts the car back
   if (drv.p.y < FLR - 2 || Math.abs(drv.p.x) > 400 || Math.abs(drv.p.z) > 400 || drv.p.y > 400 || (ROOMB && (drv.p.x < ROOMB.x0 + .8 || drv.p.x > ROOMB.x1 - .8 || drv.p.z < ROOMB.z0 + .8 || drv.p.z > ROOMB.z1 - .8 || drv.p.y > ROOMB.y1 + 4))) resetCar("Back on the road");
   boostFX.update(dt); boostFill.style.width = drv.boost + "%"; boostFill.style.background = drv.lock ? "#b0b6be" : "";
 }
@@ -2486,7 +2486,10 @@ const tip = document.getElementById("tip"), ray = new THREE.Raycaster(), mouse =
 const hl = new THREE.BoxHelper(new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1)), 0xffc400); hl.material.depthTest = false; hl.renderOrder = 998; hl.visible = false; scene.add(hl);
 // wires: every wire has a fat invisible twin that is easy to point at, and a glowing sleeve that is drawn round it while it is highlighted
 const wirePicks = [], WIRES = wireGroup.children.filter(m => m.userData.wire);
-const wireBtn = document.getElementById("wireBtn"), setWires = v => { wireGroup.visible = v; wireBtn.classList.toggle("on", v); }; wireBtn.onclick = () => { setWires(!wireGroup.visible); say(wireGroup.visible ? "Wiring shown" : "All wiring hidden"); wireBtn.blur(); };
+const wireBtn = document.getElementById("wireBtn"), setWires = v => { wireGroup.visible = v; wireBtn.classList.toggle("on", v); }; const POWERK = new Set(["Controller", "Power module", "Microcontroller", "Switch", "Sensor", "Connector"]);
+// everything electrical except the motors: the supply, fuse, switch, distribution block, floor outlet, T-taps, every controller board, converter, sensor and limit switch, and all the wiring
+const setPower = v => { setWires(v); PWR.visible = PSU.visible = FUSE.visible = SW.visible = DB.visible = v; for (const o of INFOS) if (POWERK.has(o.userData.info.kind)) o.visible = v; };
+wireBtn.onclick = () => { setWires(!wireGroup.visible); say(wireGroup.visible ? "Wiring shown" : "All wiring hidden"); wireBtn.blur(); };
 WIRES.forEach(m => { const w = m.userData.wire, pk = new THREE.Mesh(tubeGeo(w.path, Math.max(.085, w.r * 2.4), 6)); pk.visible = false; pk.userData.wireOf = m; scene.add(pk); wirePicks.push(pk); });
 const sleeve = col => { const m = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: .62, depthTest: false, depthWrite: false })); m.renderOrder = 996; m.visible = false; m.frustumCulled = false; scene.add(m); return m; };
 const haloHover = sleeve(0xfff176), haloPin = sleeve(0xffb300); let pinWire = null, soloWire = null;
@@ -2574,7 +2577,7 @@ renderer.setAnimationLoop(() => {
   if (toastT > 0 && (toastT -= dt) <= 0) toast.style.display = "none"; hoverTick(); dimHover(); if (!drv.on) boostFX.update(dt);
   if (playing || drv.on) { const steps = Math.ceil(speed * dt / .02); for (let i = 0; i < steps; i++) tick(speed * dt / steps); }
   if (tour.on) tourTick(dt);
-  else if (follow && drv.on && drv.chase) chaseCam(dt);
+  else if (follow && drv.chase && (drv.on || CAM.auto)) chaseCam(dt);
   else if (follow) { car.mesh.getWorldPosition(ctgt); cpos.subVectors(ctgt, lastCar); camera.position.add(cpos); controls.target.add(cpos); lastCar.copy(ctgt); }   // shift by exactly what the car moved: no snapping back
   else if (focusT) { controls.target.lerp(focusT, .07); camera.position.lerp(focusC, .07); if (camera.position.distanceTo(focusC) < .05) focusT = focusC = null; }
   controls.update(); if (pivot.visible) { pivot.position.copy(controls.target); pivot.scale.setScalar(camera.position.distanceTo(controls.target) * .035); }
@@ -2586,7 +2589,7 @@ renderer.setAnimationLoop(() => {
 document.getElementById("loading").remove();
 window.__ready = true;
 AXZ.start = (() => { const p = wpose(AX, .5, 0); return { x: p.x, y: DECK, z: p.z, h: AX.entry.h }; })(); AXZ.home = { x: -13, y: DECK, z: -44, h: 0 };
-window.__dbg = { get CITY() { return CITY; }, setWires, dimTags, show, applyShow, PILLARS, FRAME, CVIEWS, setRails, makeCar, setFollow, say, renderer, CARS, addCar, removeCar, STRIPS, CURBS, SV, chaseCam, CAM, BODY, PILLARS, flipCar, WIRES, DECOR, haloPin, haloHover, GP, setBody, resetCar, RAILG, DRAILS, get place() { return place; }, P: { CVx: CV.exit, RBe: RB.entry, RBx: RB.exit, WLx: WL.exit, FEe: FE.entry, FEx: FE.exit, B1e: B1.entry, B2x: B2.exit, TIx: TI.exit, ti: tiEntry }, drv, setDrive, keys, surfaceAt, SURF, occ, stations, roads, INFOS, BEARINGS, setFollow, jump: k => { select(k); camera.position.copy(focusC); controls.target.copy(focusT); focusT = focusC = null; }, stations, car, course, scene, camera, controls, THREE, LW, tour, tourStart, tourGo,
+window.__dbg = { get CITY() { return CITY; }, camSync, setWires, setPower, set speed(v) { speed = v; document.getElementById("speed").value = v; }, get speed() { return speed; }, dimTags, show, applyShow, PILLARS, FRAME, CVIEWS, setRails, makeCar, setFollow, say, renderer, CARS, addCar, removeCar, STRIPS, CURBS, SV, chaseCam, CAM, BODY, PILLARS, flipCar, WIRES, DECOR, haloPin, haloHover, GP, setBody, resetCar, RAILG, DRAILS, get place() { return place; }, P: { CVx: CV.exit, RBe: RB.entry, RBx: RB.exit, WLx: WL.exit, FEe: FE.entry, FEx: FE.exit, B1e: B1.entry, B2x: B2.exit, TIx: TI.exit, ti: tiEntry }, drv, setDrive, keys, surfaceAt, SURF, occ, stations, roads, INFOS, BEARINGS, setFollow, jump: k => { select(k); camera.position.copy(focusC); controls.target.copy(focusT); focusT = focusC = null; }, stations, car, course, scene, camera, controls, THREE, LW, tour, tourStart, tourGo,
   tick: (n, dt) => { for (let i = 0; i < n; i++) tick(dt); }, get simT() { return simT; }, adv(T) { while (simT < T) tick(1 / 60); } };
 
 
@@ -2621,7 +2624,7 @@ const LANDMARKS = {};
   // sheathed in ribbed steel with rows of narrow slot windows and a glass cap; the other three are three-storey concrete buildings. Two round skywalks, one at the second floor
   // and one at the third, run from the pyramid into each of the two buildings beside it. One of those two has a small courtyard, set cornerwise; the building opposite has a low hipped roof
   LANDMARKS.wright = ctx => { const G = site(ctx, "wright"); if (!G) return; const H = new THREE.Group(); H.rotation.y = Math.PI / 4; G.add(H); const B = 2.9, b = 2.3, gp = .5, FL = .34, PH = 1.55, pc = gp / 2 + B / 2, bc = gp / 2 + b / 2;
-    H.add(bx(5.7, .06, 5.7, 0x86c46c, .3, .03, -.3), bx(.5, .065, 5.7, 0xe3ddd0, 0, .033, -.3), bx(5.7, .065, .5, 0xe3ddd0, .3, .033, 0));   // lawn under the whole block, with the two walks that cross between the buildings
+    H.add(bx(.5, .065, 5.7, 0xe3ddd0, 0, .033, -.3), bx(5.7, .065, .5, 0xe3ddd0, .3, .033, 0));   // the two walks that cross between the buildings (the grass is the city's own, the same green as everywhere else)
     // one face of the pyramid, drawn flat: the ribs run straight up the slope, two seams cross it, and the windows sit in four rows (6, 6, 3 + 3, 4); the top is the glass cap
     const face = tex(512, 512, (q, w, h) => { const gd = q.createLinearGradient(0, h, 0, 0); gd.addColorStop(0, "#c3cbd2"); gd.addColorStop(.6, "#d9dfe4"); gd.addColorStop(1, "#e6eaee"); q.fillStyle = gd; q.fillRect(0, 0, w, h);
       for (let x = 0; x < w; x += 7) { q.fillStyle = "rgba(60,74,88,.34)"; q.fillRect(x, 0, 1, h); q.fillStyle = "rgba(255,255,255,.35)"; q.fillRect(x + 1, 0, 1, h); }
@@ -2700,7 +2703,6 @@ const LANDMARKS = {};
     G.add(at(lm(new THREE.CircleGeometry(2.3, 40, Math.PI, Math.PI).rotateX(-HP), conc), 0, .03, ZS)); const red = mt(0xc7362b, { roughness: .8 });
     for (const [r0, r1, n, sp] of [[.55, 1.15, 5, .95], [1.3, 2.0, 7, 1.02]]) for (let k = 0; k < n; k++) { const wdt = 2 * sp / n, a = 1.5 * Math.PI - sp + k * wdt; G.add(at(lm(new THREE.RingGeometry(r0, r1, 6, 1, a + .035, wdt - .07).rotateX(-HP), red), 0, .05, ZS)); }
     // the Great Lawn
-    const lawn = lm(new THREE.CircleGeometry(1, 56).rotateX(-HP), mt(0x67ba56, { roughness: 1 })); lawn.scale.set(2.55, 1, 2.35); G.add(at(lawn, 0, .02, -.25));
     // the trellis
     { const a = 2.75, b = 3.0, zc = -1.1, on = (t, sd) => [sd * a * Math.sin(t), zc - b * Math.cos(t)], D = .95, N = 8; for (const sd of [-1, 1]) for (let k = 0; k < N; k++) { const t0 = .22 + k * (Math.PI - .44 - D) / (N - 1), p = on(t0, sd), q = on(t0 + D, -sd), pts = [];
         for (let i = 0; i <= 18; i++) { const u = i / 18, bow = Math.sin(Math.PI * u) * .22; pts.push(new THREE.Vector3(p[0] + (q[0] - p[0]) * u, .5 + 1.15 * Math.pow(Math.sin(Math.PI * u), .75), p[1] + (q[1] - p[1]) * u + bow)); }
@@ -2943,10 +2945,10 @@ const CITY = (() => {
     const road = (s, wd, col) => { c.strokeStyle = c.fillStyle = col; c.lineWidth = wd; c.lineCap = "butt"; c.beginPath(); c.moveTo(s[0], s[1]); c.lineTo(s[2], s[3]); c.stroke(); for (const e of [0, 1]) if (!s[4 + e]) { c.beginPath(); c.arc(s[e * 2], s[e * 2 + 1], wd / 2, 0, 6.2832); c.fill(); } };
     for (const s of SEG) road(s, SW + .5, "#cfc9bb"); for (const s of SEG) road(s, SW, "#5d6570"); c.setLineDash([.55, .5]); c.lineCap = "butt"; for (const s of SEG) { c.strokeStyle = "#f1e9c9"; c.lineWidth = .07; c.beginPath(); c.moveTo(s[0], s[1]); c.lineTo(s[2], s[3]); c.stroke(); } c.setLineDash([]);
     // paving or planting under every landmark, meeting the streets round it
-    for (const k in SITES) { if (k === "midway" || k.startsWith("hang")) continue; const s = SITES[k], park = k === "millennium" || k === "wright"; c.fillStyle = park ? "#86c46c" : "#dcd5c4"; c.beginPath(); c.roundRect(s.x - s.w / 2 - .35, s.z - s.d / 2 - .35, s.w + .7, s.d + .7, .6); c.fill(); if (!park) { c.strokeStyle = "#c2bba8"; c.lineWidth = .05; for (let a = s.x - s.w / 2; a < s.x + s.w / 2 + .3; a += .7) { c.beginPath(); c.moveTo(a, s.z - s.d / 2 - .3); c.lineTo(a, s.z + s.d / 2 + .3); c.stroke(); } } }
+    for (const k in SITES) { if (k === "midway" || k.startsWith("hang")) continue; const s = SITES[k], park = k === "millennium" || k === "wright"; if (park) continue; c.fillStyle = "#dcd5c4"; c.beginPath(); c.roundRect(s.x - s.w / 2 - .35, s.z - s.d / 2 - .35, s.w + .7, s.d + .7, .6); c.fill(); if (!park) { c.strokeStyle = "#c2bba8"; c.lineWidth = .05; for (let a = s.x - s.w / 2; a < s.x + s.w / 2 + .3; a += .7) { c.beginPath(); c.moveTo(a, s.z - s.d / 2 - .3); c.lineTo(a, s.z + s.d / 2 + .3); c.stroke(); } } }
     // the airfield: dry mown grass, the two crossing runways in pale concrete, the shorter runway beside each, taxiways and the short links between them, aprons at the terminal and the hangars
     { c.fillStyle = "#a9c283"; c.beginPath(); c.roundRect(MR.x0, MR.z0, MR.w, MR.d, 1.5); c.fill(); c.strokeStyle = "#d9d5c8"; c.lineWidth = .12; c.stroke();
-      for (let i = 0; i < 260; i++) { const x = MR.x0 + rnd() * MR.w, z = MR.z0 + rnd() * MR.d, r = .6 + rnd() * 2, gd = c.createRadialGradient(x, z, 0, x, z, r); gd.addColorStop(0, rnd() < .5 ? "rgba(196,190,130,.25)" : "rgba(120,170,96,.22)"); gd.addColorStop(1, "rgba(0,0,0,0)"); c.fillStyle = gd; c.fillRect(Math.max(MR.x0, x - r), Math.max(MR.z0, z - r), 2 * r, 2 * r); }
+      for (let i = 0; i < 260; i++) { rnd(); rnd(); rnd(); rnd(); }   /* one even colour, no mottling (the random numbers are still drawn so the rest of the city stays as it was) */
       const strip = (a, b, off, wd, col, cap = "butt") => { const dx = b[0] - a[0], dz = b[1] - a[1], l = Math.hypot(dx, dz), nx = -dz / l * off, nz = dx / l * off; c.strokeStyle = col; c.lineWidth = wd; c.lineCap = cap; c.beginPath(); c.moveTo(a[0] + nx, a[1] + nz); c.lineTo(b[0] + nx, b[1] + nz); c.stroke(); };
       const ALLR = [...RUN.map(r => [r, .875]), ...SEC.map(r => [r, .6])];
       for (const [a, b] of SEC) strip(a, b, 0, 1.2, "#878d94"); for (const [a, b] of RUN) strip(a, b, 0, 1.75, "#858b92");
@@ -3697,7 +3699,7 @@ const ART = (() => {
     // the room once more, upside down under the floor: seen through the glossy floor it is the reflection
     const mir = shell.clone(); mir.scale.y = -1; mir.position.y = 2 * YF; g.add(mir);
     for (let i = 0; i < 4; i++) { const src = shell.children[i].material.map.image, sm = mkc(Math.round(src.width / 12), Math.round(src.height / 12)), q = sm.getContext("2d"); q.imageSmoothingQuality = "high"; q.drawImage(src, 0, 0, sm.width, sm.height); mir.children[i].material = new THREE.MeshBasicMaterial({ map: ctex(sm), color: 0xdfe6ee }); }   // a soft copy of each mural: the floor is satin, not a mirror
-    mir.children.filter(o => o.isSprite || o.userData.noMirror).forEach(o => mir.remove(o)); const mu = under.clone(); mu.scale.y = -1; mu.position.y = 2 * YF; g.add(mu); g.traverse(o => { if (o.userData.top) ART_HIDE.top.push(o); else if (o.userData.trim) ART_HIDE.trim.push(o); });
+    mir.children.filter(o => o.isSprite || o.userData.noMirror).forEach(o => mir.remove(o)); const mu = under.clone(); mu.scale.y = -1; mu.position.y = 2 * YF; g.add(mu); mir.traverse(o => { o.userData.top = false; }); g.traverse(o => { if (o.userData.top) ART_HIDE.top.push(o); else if (o.userData.trim) ART_HIDE.trim.push(o); });
     FXP.push(mir, mu); setFx(fx);
     // the big drawing canvases are only needed until the pictures are on the graphics card
     shell.children.forEach(o => { const t = o.material && o.material.map; if (t && t.image && t.image.width > 1500) t.onUpdate = () => { t.image.width = t.image.height = 1; t.onUpdate = null; }; });
@@ -3803,9 +3805,9 @@ ART.table = (g, under) => {
   fxBtn.onclick = () => { ART.setFx(!ART.fx); fxBtn.classList.toggle("on", ART.fx); fxBtn.blur(); say(ART.fx ? "Effects on: floor reflection, uplight glow, fine shadows" : "Effects off: faster"); };
   const cx = (TBL.x0 + TBL.x1) / 2, cz = (TBL.z0 + TBL.z1) / 2, P = new V3(), T = new V3();
   const orbitAt = (a, p, t) => { const r = 1 + .09 * Math.sin(2 * a + 1); p.set(cx + Math.cos(a) * 98 * r, 19 + 11 * (.5 + .5 * Math.sin(a * 1.5 + .6)), cz + Math.sin(a) * 114 * r); t.set(cx + 7 * Math.cos(a * .7), 1.5 + 2 * Math.sin(a * 1.1), cz + 8 * Math.sin(a * .9)); };
-  const orbitSet = v => { if (v) { if (tour.on) tourEnd(); setFollow(false); orb = { a: Math.atan2(camera.position.z - cz, camera.position.x - cx), t: 0, p0: camera.position.clone(), t0: controls.target.clone() }; } else orb = null; orbBtn.classList.toggle("on", !!orb); };
-  orbBtn.onclick = () => { orbitSet(!orb); orbBtn.blur(); }; renderer.domElement.addEventListener("pointerdown", () => { if (orb) orbitSet(false); });
-  if (!window.GAME) { orbitSet(true); setRails(1); toast.style.display = "none"; setClean(true); }   // how the model opens: slowly circling, guard rails flush
+  const orbitSet = (v, at) => { if (v) { if (tour.on) tourEnd(); setFollow(false); orb = { a: at ?? Math.atan2(camera.position.z - cz, camera.position.x - cx), t: at === undefined ? 0 : 3, p0: camera.position.clone(), t0: controls.target.clone() }; if (at !== undefined) { orbitAt(orb.a, camera.position, controls.target); camera.lookAt(controls.target); } } else orb = null; orbBtn.classList.toggle("on", !!orb); };
+  orbBtn.onclick = () => { orbitSet(!orb); orbBtn.blur(); }; renderer.domElement.addEventListener("pointerdown", () => { if (orb && !window.GAME) orbitSet(false); });
+  if (!window.GAME) { orbitSet(true); setRails(1); toast.style.display = "none"; setClean(true); } else orbitSet(true, 2.2);   // the game opens already part-way round the orbit   // how the model opens: slowly circling, guard rails flush
   FRAME.f = dt => {
     if (orb && !window.GAME && (drv.on || tour.on)) orbitSet(false);
     { const p = camera.position, above = p.y > ART.YT - .3, out = above || p.x < ART.X0 || p.x > ART.X1 || p.z < ART.Z0 || p.z > ART.Z1;   // from outside you look straight in: no ceiling in the way from above, no cornice or skirting edge-on from anywhere
@@ -3854,20 +3856,27 @@ const css = document.createElement("style"); css.textContent = `
   #gBig.pop { animation: gpop .9s ease-out both; } #gBig.stay { animation: gin .5s cubic-bezier(.2, 1.6, .4, 1) both; } @keyframes gpop { 0% { opacity: 0; transform: translate(-50%, -50%) scale(2.2); } 18% { opacity: 1; transform: translate(-50%, -50%) scale(1); } 75% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -50%) scale(.8); } } @keyframes gin { 0% { opacity: 0; transform: translate(-50%, -50%) scale(.2) rotate(-8deg); } 100% { opacity: 1; transform: translate(-50%, -50%) scale(1) rotate(-3deg); } }
   @media (max-width: 700px) { #gBig { font-size: 72px; -webkit-text-stroke: 3px #12264a; } }
   .gBar { position: fixed; left: 0; right: 0; height: 0; background: #060d18; z-index: 54; transition: height .5s; } #gBarT { top: 0; } #gBarB { bottom: 0; display: grid; place-items: center; font: 700 20px system-ui, sans-serif; letter-spacing: .12em; text-transform: uppercase; overflow: hidden; } body.cine .gBar { height: 11vh; }
+  #gHud .gFree { display: none; } #gHud.free .gFree { display: block; } #gHud.free .gRace { display: none; } #gHud.free #gSpdL { display: flex; align-items: center; gap: 8px; margin-top: 8px; pointer-events: auto; font-size: 12px; } #gSpd { width: 130px; accent-color: #ff8a3d; } #gSpdV { min-width: 34px; text-align: right; font-variant-numeric: tabular-nums; }
   #gNote { position: fixed; left: 50%; bottom: 20%; transform: translateX(-50%); background: rgba(10,22,40,.7); padding: 8px 14px; border-radius: 10px; font-size: 14px; font-weight: 600; z-index: 52; display: none; text-align: center; }
 `; document.head.appendChild(css);
 document.body.insertAdjacentHTML("beforeend", `<div class="g">
-  <div id="gHud"><div class="box"><small>Lap <span id="gLap">1</span> · <span id="gPos"></span></small><div class="big" id="gTime">0:00.00</div><div id="gBoost"><i></i></div></div>
+  <div id="gHud"><div class="box"><small class="gRace">Lap <span id="gLap">1</span> · <span id="gPos"></span></small><small class="gFree">Free run · unlimited boost</small><div class="big" id="gTime">0:00.00</div><div id="gBoost"><i></i></div>
+      <label class="gFree" id="gSpdL">Speed <input id="gSpd" type="range" min="0.1" max="3" step="0.1" value="1"><b id="gSpdV">1.0×</b></label></div>
     <div class="row"><button class="gb sm" id="gCam">Camera: Chase</button><button class="gb sm" id="gReset">Reset</button><button class="gb sm" id="gFlip">Flip</button><button class="gb sm" id="gQuit">Quit</button></div></div>
   <div class="gPad" id="gL"><button data-k="a">◀</button><button data-k="d">▶</button></div>
   <div class="gPad" id="gR"><button data-k="boost">Boost</button><button data-k="jump">Jump</button><button data-k="s">Brake</button><button data-k="w">Gas</button></div>
   <div id="gBig"></div><div class="gBar" id="gBarT"></div><div class="gBar" id="gBarB"></div><div id="gNote"></div><div id="gScr"><div class="card" id="gCard"></div></div></div>`);
 
 // ---------- the world, set up for play: no viewer menus, flush guard rails, the car in hand ----------
-$("hideAll").click(); d.setRails(1); d.setWires(false); d.tick(3, 1 / 60); d.setDrive(true); if (!$("chaseBtn").classList.contains("on")) $("chaseBtn").click(); if (!$("autoReset").classList.contains("on")) $("autoReset").click();
+// nothing electrical but the motors is shown. The view cannot be dragged away from the car: you may look round, and it comes straight back. The chosen view also follows the car while the autopilot has it
+const ORB0 = d.orb ? d.orb.a : 2.2; $("hideAll").click(); d.setRails(1); d.setPower(false); d.controls.enablePan = false; d.CAM.snap = d.CAM.auto = true; d.tick(3, 1 / 60); d.setDrive(true); if (!$("chaseBtn").classList.contains("on")) $("chaseBtn").click(); if (!$("autoReset").classList.contains("on")) $("autoReset").click();
 if (matchMedia("(pointer: coarse)").matches && $("fxBtn").classList.contains("on")) $("fxBtn").click();
 const S0 = (() => { const p = d.car.mesh.getWorldPosition(V(0, 0, 0)); return { x: p.x, y: p.y, z: p.z, h: D.h || 0 }; })(), fin = d.stations.find(s => s.key === "finish"); let finOK = () => true; { const fire0 = fin.fire; fin.fire = () => { if (finOK()) fire0(); }; }
-D.hold = true;
+D.hold = true; d.orbitSet(true, ORB0);   // the page opens already part-way round the orbit, not at the car
+const orbit = () => { if (!d.orb) d.orbitSet(true); };
+// the two kinds of game. Race: laps against the clock, the boost runs down, a car that falls is put back. Free run: unlimited boost, nothing puts the car back (Reset still does), the walls of the room are solid, and the speed slider sets how fast everything runs
+const rules = f => { D.unl = f; D.auto = !f; D.free = f; if (!f) { d.speed = 1; $("gSpd").value = 1; $("gSpdV").textContent = "1.0×"; } $("gHud").classList.toggle("free", f); };
+$("gSpd").oninput = e => { d.speed = +e.target.value; $("gSpdV").textContent = (+e.target.value).toFixed(1) + "×"; }; for (const ev of ["keydown", "keyup"]) $("gSpd").addEventListener(ev, e => e.stopPropagation());
 for (const b of document.querySelectorAll(".gPad button")) { const k = b.dataset.k, set = v => { d.keys[k] = v; b.classList.toggle("on", v); };
   b.addEventListener("pointerdown", e => { e.preventDefault(); b.setPointerCapture(e.pointerId); set(true); }); for (const ev of ["pointerup", "pointercancel", "lostpointercapture"]) b.addEventListener(ev, () => set(false)); b.addEventListener("contextmenu", e => e.preventDefault()); }
 $("gReset").onclick = () => d.resetCar(); $("gFlip").onclick = () => d.flipCar();
@@ -3894,15 +3903,16 @@ const fmt = t => Math.floor(t / 60) + ":" + (t % 60 < 10 ? "0" : "") + (t % 60).
 let shown = null; const show = html => { if (html !== shown || scr.style.display === "none") { card.innerHTML = shown = html; } scr.style.display = "grid"; }, hide = () => { scr.style.display = "none"; }, hud = v => { $("gHud").style.display = v ? "flex" : "none"; for (const p of document.querySelectorAll(".gPad")) p.style.display = v ? "grid" : "none"; };
 const flash = (s, stay) => { big.textContent = s; big.className = ""; void big.offsetWidth; big.className = stay ? "stay" : "pop"; if (stay) big.style.opacity = 1; else big.style.opacity = ""; }, note = s => { $("gNote").textContent = s || ""; $("gNote").style.display = s ? "block" : "none"; };
 let name = ""; try { name = localStorage.getItem("crr-name") || ""; } catch (e) {}
-let mode = null, phase = "menu", laps = 2, ghost = false, best = null; try { best = +localStorage.getItem("crr-best") || null; } catch (e) {}
-const menu = () => { phase = "menu"; mode = null; hud(false); note(""); big.style.opacity = 0; big.className = ""; D.hold = true; d.orbitSet(true); music(null);
+let mode = null, phase = "menu", laps = 2, ghost = false, free = false, best = null; try { best = +localStorage.getItem("crr-best") || null; } catch (e) {}
+const menu = () => { phase = "menu"; mode = null; hud(false); note(""); big.style.opacity = 0; big.className = ""; D.hold = true; rules(false); orbit(); music(null);
   show(`${head}<h1>Chicago <b>Robot Race</b></h1><div class="bar"></div><div class="bar"></div><p>Drive the robot car round the Chicago track: the spinning top, the Ferris wheel, Lower Wacker, the Sears Tower spiral, the swinging axes.</p><button class="gb pri" id="mSP">Single player</button><button class="gb" id="mMP">Multiplayer</button>`);
   $("mSP").onclick = () => { audio(); askName(() => { mode = "sp"; setup(); }); }; $("mMP").onclick = () => { audio(); askName(mpMenu); }; };
 const askName = next => { show(`<h2>Your name</h2><p>Shown to the other players and on the leaderboard.</p><input id="mName" maxlength="60" placeholder="Type any name" value="${esc(name)}"><button class="gb pri" id="mOk">Continue</button><button class="gb" id="mBack">Back</button>`);
   const go = () => { name = $("mName").value || "Player"; try { localStorage.setItem("crr-name", name); } catch (e) {} next(); }; $("mOk").onclick = go; $("mName").onkeydown = e => { e.stopPropagation(); if (e.key === "Enter") go(); }; $("mName").onkeyup = e => e.stopPropagation(); $("mBack").onclick = menu; };
 const setRow = edit => `<div class="gset"><span>Laps</span><div>${edit ? '<button class="gb sm" id="lM">−</button>' : ""}<b id="lN">${laps}</b>${edit ? '<button class="gb sm" id="lP">+</button>' : ""}</div></div>`;
-const bindLaps = (cb) => { $("lM").onclick = () => { laps = Math.max(1, laps - 1); $("lN").textContent = laps; cb && cb(); }; $("lP").onclick = () => { laps = Math.min(99, laps + 1); $("lN").textContent = laps; cb && cb(); }; };
-const setup = () => { phase = "setup"; d.orbitSet(true); show(`<h2>Single player</h2>${setRow(true)}<p>${best ? "Your best lap: " + fmt(best) : "No best lap yet."}</p><button class="gb pri" id="mGo">Start race</button><button class="gb" id="mBack">Main menu</button>`); bindLaps(); $("mGo").onclick = () => startRace(0); $("mBack").onclick = menu; };
+const modeRow = edit => `<div class="gset"><span>Game</span><div>${edit ? `<button class="gb sm" id="gM">${free ? "Free run" : "Race"}</button>` : `<b>${free ? "Free run" : "Race"}</b>`}</div></div>`, freeP = `<p>Free run: unlimited boost, drive anywhere on the table or off it, nothing puts you back. Reset still works, and a slider sets the speed.</p>`;
+const bindLaps = (cb) => { if (!$("lM")) return; $("lM").onclick = () => { laps = Math.max(1, laps - 1); $("lN").textContent = laps; cb && cb(); }; $("lP").onclick = () => { laps = Math.min(99, laps + 1); $("lN").textContent = laps; cb && cb(); }; };
+const setup = () => { phase = "setup"; orbit(); show(`<h2>Single player</h2>${modeRow(true)}${free ? freeP : setRow(true) + `<p>${best ? "Your best lap: " + fmt(best) : "No best lap yet."}</p>`}<button class="gb pri" id="mGo">${free ? "Start free run" : "Start race"}</button><button class="gb" id="mBack">Main menu</button>`); bindLaps(); $("gM").onclick = () => { free = !free; setup(); }; $("mGo").onclick = () => startRace(0); $("mBack").onclick = menu; };
 
 // ---------- the race ----------
 let t = 0, lap = 1, away = false, finT = null, cine = null, cnt = null, celeb = 0, myK = -1, gridI = 0, bestLap = null, lapT0 = 0; const seen = new Set();
@@ -3912,8 +3922,11 @@ const SHOTS = (() => { const mid = k => { const s = d.stations.find(q => q.key =
 const grid = i => { const fx = Math.cos(S0.h), fz = -Math.sin(S0.h), r = (i >> 1) * 1.9, s = (i % 2 ? .6 : -.6) * (i === 0 && mode === "sp" ? 0 : 1); return [S0.x - fx * r - fz * s, S0.y, S0.z - fz * r + fx * s, S0.h]; };
 // (the chase camera only runs while follow is on, and the orbit in the menus turns follow off: so follow is switched on here)
 function startRace(i) { hide(); note(""); big.style.opacity = 0; big.className = ""; d.orbitSet(false); if (!D.on) d.setDrive(true); if (!D.chase) $("chaseBtn").click(); d.setFollow(true); gridI = i; const g = grid(i); d.setBody(g[0], g[1], g[2], g[3], 0); D.hold = true;
-  t = 0; lap = 1; lapT0 = 0; bestLap = null; away = false; finT = null; celeb = 0; seen.clear(); $("gLap").textContent = "1/" + laps; $("gTime").textContent = fmt(0); phase = "intro"; cine = { t: 0 }; document.body.classList.add("cine"); music("intro"); hud(false); }
-// the finish: no stop. The moment the line is crossed the autopilot takes the wheel and the car carries on round the track, hopping and looking from side to side the whole time, until everyone is home
+  t = 0; lap = 1; lapT0 = 0; bestLap = null; away = false; finT = null; celeb = 0; seen.clear(); $("gLap").textContent = "1/" + laps; $("gTime").textContent = fmt(0); rules(free); $("gQuit").textContent = free && mode === "mp" && isHost ? "End free run" : "Quit";
+  if (free) { phase = "free"; D.hold = false; d.camSync(); music("race"); hud(true); flash("Free run"); return; }   // free run: no film, no countdown, straight in
+  phase = "intro"; cine = { t: 0 }; document.body.classList.add("cine"); music("intro"); hud(false); }
+// the finish: no stop. The moment the line is crossed the autopilot takes the wheel and the car carries on round the track, hopping and looking from side to side the whole time:
+// through the wait for the others, the leaderboard, the lobby and the menus, until the next game starts
 const finishRace = () => { finT = t; phase = "done"; music(null); jingle(); flash("FINISH!", true); if (bestLap && (!best || bestLap < best)) { best = bestLap; try { localStorage.setItem("crr-best", String(best)); } catch (e) {} }
   hud(false); d.setDrive(false); d.setFollow(true); celeb = .001;
   setTimeout(() => { if (phase !== "done") return; big.style.opacity = 0; big.className = ""; if (mode === "sp") setTimeout(() => { if (phase === "done") results(); }, 5200); else note("Waiting for the other racers…"); }, 1900); };
@@ -3922,7 +3935,7 @@ const results = () => { phase = "results"; note(""); music("results"); hud(false
   else rows = racers().sort((a, b) => (a.presence.f ?? 1e9) - (b.presence.f ?? 1e9)).map((p, i) => `<li><span>${i + 1}. ${esc(p.presence.n || "Player")}${p.isMe && p.sameTab ? " (you)" : ""}</span><b>${p.presence.f != null ? fmt(p.presence.f) : "did not finish"}</b></li>`).join("");
   show(`${head}<h2>Leaderboard · ${laps} lap${laps > 1 ? "s" : ""}</h2><ul class="gl">${rows}</ul>` + (mode === "sp" ? `<button class="gb pri" id="rA">Race again</button><button class="gb" id="rM">Main menu</button>` : isHost ? `<button class="gb pri" id="rL">Back to the lobby</button>` : `<p>The host will take everyone back to the lobby.</p>`) + (mode === "mp" ? `<button class="gb" id="rQ">Leave</button>` : ""));
   if ($("rA")) $("rA").onclick = setup; if ($("rM")) $("rM").onclick = menu; if ($("rL")) $("rL").onclick = () => hostSet({ ph: "lobby" }); if ($("rQ")) $("rQ").onclick = leaveLobby; };
-$("gQuit").onclick = () => { if (mode === "mp") leaveLobby(); else menu(); };
+$("gQuit").onclick = () => { if (mode !== "mp") menu(); else if (phase === "free" && isHost) hostSet({ ph: "lobby" }); else leaveLobby(); };
 
 // ---------- multiplayer ----------
 let room = null, lob = null, isHost = false, code = null, hostP = null, lastPh = null, lastK = -1, spect = false, pubT = 0; const REM = new Map();
@@ -3961,36 +3974,37 @@ let relay = null, relayT = 0; const useRoom = r => { room = r; r.onPeers(() => {
 const tryRelay = () => { if (room || relay) return; relayT = performance.now(); relay = makeRelay(() => { if (!room) useRoom(relay.room); }); setTimeout(() => { if (phase === "mpmenu" && !room) mpMenu(); }, 9000); };
 if (window.claude && window.claude.use) window.claude.use("room").then(r => { if (r) useRoom(r); else tryRelay(); }); else tryRelay();
 window.__net = () => ({ room: !!room, relay: !!relay, up: !!relay && relay.up(), relays: RELAYS, phase, isHost, code, net: relay && relay.dbg() });
-function mpMenu() { phase = "mpmenu"; mode = "mp"; d.orbitSet(true);
+function mpMenu() { phase = "mpmenu"; mode = "mp"; orbit();
   if (!room) { const dead = relay && performance.now() - relayT > 8500; show(`<h2>Multiplayer</h2><p>${!dead ? "Connecting…" : window.claude ? "Multiplayer cannot connect from here. Inside Claude this page may only reach other players for people who are signed in to Claude and have been invited to it, and it is not allowed to open any other connection. The stand-alone copy of the game has no such limit: there anyone with the link can host and join without signing in to anything." : "Cannot reach the relay servers right now. Check your connection and try again."}</p><button class="gb" id="mBack">Back</button>`); $("mBack").onclick = menu; return; }
   const ls = room.peers().filter(p => p.presence.host && p.presence.lob);
   show(`<h2>Multiplayer</h2><button class="gb pri" id="mHost">Host a lobby</button><p style="margin-top:16px">Open lobbies</p><ul class="gl">${ls.length ? ls.map((p, i) => `<li><span>${esc(p.presence.n || "Player")}'s lobby <small>· ${p.presence.cnt || 1} player${p.presence.cnt > 1 ? "s" : ""} · ${p.presence.ph === "lobby" ? "waiting" : "racing"}</small></span><button class="gb sm" data-j="${i}">Join</button></li>`).join("") : "<li><small>No lobby is open right now. Host one.</small></li>"}</ul><button class="gb" id="mBack">Back</button>`);
   $("mHost").onclick = () => enter(Math.random().toString(36).slice(2, 8), true); for (const b of card.querySelectorAll("[data-j]")) b.onclick = () => enter(ls[+b.dataset.j].presence.lob, false); $("mBack").onclick = menu; }
 async function enter(c, host) { show(`<h2>Joining…</h2>`); try { lob = await room.join("race-" + c); } catch (e) { mpMenu(); return; } code = c; isHost = host; lastPh = null; lastK = -1; myK = -1; spect = false;
-  await lob.presence(host ? { n: name, h: 1, r: 1, s: { laps, ghost }, ph: "lobby", k: 0 } : { n: name, h: 0, r: 0 }).catch(() => {}); room.presence({ n: name, lob: c, host: host ? 1 : 0, ph: "lobby", cnt: 1 }).catch(() => {});
+  await lob.presence(host ? { n: name, h: 1, r: 1, s: { laps, ghost, free }, ph: "lobby", k: 0 } : { n: name, h: 0, r: 0 }).catch(() => {}); room.presence({ n: name, lob: c, host: host ? 1 : 0, ph: "lobby", cnt: 1 }).catch(() => {});
   lob.onPeers(onLobby, () => { lob = null; clearRem(); menu(); }); phase = "lobby"; lobbyScr(); }
-async function leaveLobby() { const l = lob; lob = null; clearRem(); if (l) l.leave().catch(() => {}); if (room) room.presence({ lob: null, host: null }).catch(() => {}); if (!D.on) d.setDrive(true); menu(); }
+async function leaveLobby() { const l = lob; lob = null; clearRem(); if (l) l.leave().catch(() => {}); if (room) room.presence({ lob: null, host: null }).catch(() => {}); if (!D.on && !celeb) d.setDrive(true); menu(); }
 const hostSet = p => { if (isHost && lob) { lob.presence(p).catch(() => {}); if (p.ph && room) room.presence({ ph: p.ph }).catch(() => {}); } };
-function lobbyScr() { if (!lob) return; phase = "lobby"; hud(false); note(""); big.style.opacity = 0; big.className = ""; music(null); d.orbitSet(true); D.hold = true; const ps = lob.peers(), me = ps.find(p => p.isMe && p.sameTab), others = ps.filter(p => !p.presence.h), all = others.every(p => p.presence.r);
-  show(`<h2>${esc(hostP ? hostP.presence.n || "Player" : name)}'s lobby</h2><ul class="gl">${ps.map(p => `<li><span>${p.presence.h ? "★ " : ""}${esc(p.presence.n || "Player")}${p.isMe && p.sameTab ? " (you)" : ""}</span><small>${p.presence.h ? "host" : p.presence.r ? "ready" : "not ready"}</small></li>`).join("")}</ul>${setRow(isHost)}<div class="gset"><span>Cars</span><div>${isHost ? `<button class="gb sm" id="gG">${ghost ? "Ghosts: pass through" : "Solid: can bump"}</button>` : `<b>${ghost ? "Ghosts" : "Solid"}</b>`}</div></div>` +
-    (isHost ? `<button class="gb pri" id="lS" ${all ? "" : "disabled"}>${all ? "Start the race" : "Waiting for everyone to be ready"}</button>` : `<button class="gb pri" id="lR">${me && me.presence.r ? "Ready ✓ (tap to undo)" : "Ready up"}</button>`) + `<button class="gb" id="lQ">Leave</button>`);
-  if (isHost) { bindLaps(() => hostSet({ s: { laps, ghost } })); $("gG").onclick = () => { ghost = !ghost; hostSet({ s: { laps, ghost } }); lobbyScr(); }; $("lS").onclick = () => hostSet({ ph: "intro", k: (hostP ? hostP.presence.k || 0 : 0) + 1 }); }
+function lobbyScr() { if (!lob) return; phase = "lobby"; hud(false); note(""); big.style.opacity = 0; big.className = ""; music(null); rules(false); orbit(); D.hold = true; const ps = lob.peers(), me = ps.find(p => p.isMe && p.sameTab), others = ps.filter(p => !p.presence.h), all = others.every(p => p.presence.r);
+  show(`<h2>${esc(hostP ? hostP.presence.n || "Player" : name)}'s lobby</h2><ul class="gl">${ps.map(p => `<li><span>${p.presence.h ? "★ " : ""}${esc(p.presence.n || "Player")}${p.isMe && p.sameTab ? " (you)" : ""}</span><small>${p.presence.h ? "host" : p.presence.r ? "ready" : "not ready"}</small></li>`).join("")}</ul>${modeRow(isHost)}${free ? "" : setRow(isHost)}<div class="gset"><span>Cars</span><div>${isHost ? `<button class="gb sm" id="gG">${ghost ? "Ghosts: pass through" : "Solid: can bump"}</button>` : `<b>${ghost ? "Ghosts" : "Solid"}</b>`}</div></div>` +
+    (isHost ? `<button class="gb pri" id="lS" ${all ? "" : "disabled"}>${all ? free ? "Start the free run" : "Start the race" : "Waiting for everyone to be ready"}</button>` : `<button class="gb pri" id="lR">${me && me.presence.r ? "Ready ✓ (tap to undo)" : "Ready up"}</button>`) + `<button class="gb" id="lQ">Leave</button>`);
+  if (isHost) { const sset = () => hostSet({ s: { laps, ghost, free } }); bindLaps(sset); $("gG").onclick = () => { ghost = !ghost; sset(); lobbyScr(); }; $("gM").onclick = () => { free = !free; sset(); lobbyScr(); }; $("lS").onclick = () => hostSet({ ph: "intro", k: (hostP ? hostP.presence.k || 0 : 0) + 1 }); }
   else $("lR").onclick = () => lob.presence({ r: me && me.presence.r ? 0 : 1 }).catch(() => {}); $("lQ").onclick = leaveLobby; }
 function onLobby() { if (!lob) return; const ps = lob.peers(); hostP = ps.filter(p => p.presence.h === 1).sort((a, b) => a.peer < b.peer ? -1 : 1)[0] || null;
   if (!hostP) { if (ps.length > 1 || !isHost) { const gone = () => lob && !lob.peers().some(p => p.presence.h === 1); setTimeout(() => { if (gone()) setTimeout(() => { if (gone()) leaveLobby(); }, relay ? 4000 : 800); }, relay ? 12000 : 2500); } return; }
-  if (!isHost && hostP.presence.s) { laps = hostP.presence.s.laps || 1; ghost = !!hostP.presence.s.ghost; } if (isHost && room) room.presence({ cnt: ps.length }).catch(() => {});
+  if (!isHost && hostP.presence.s) { laps = hostP.presence.s.laps || 1; ghost = !!hostP.presence.s.ghost; free = !!hostP.presence.s.free; } if (isHost && room) room.presence({ cnt: ps.length }).catch(() => {});
   const ph = hostP.presence.ph, k = hostP.presence.k || 0;
   if (ph !== lastPh || k !== lastK) { const first = lastPh === null; lastPh = ph; lastK = k;
-    if (first && ph !== "lobby") { spect = true; hide(); hud(false); d.orbitSet(true); if (ph === "results") results(); else note("A race is under way. You join the next one."); }
-    else if (ph === "lobby") { spect = false; if (!D.on) d.setDrive(true); if (!isHost) lob.presence({ r: 0, f: null, in: null }).catch(() => {}); else lob.presence({ f: null, in: null }).catch(() => {}); lobbyScr(); }
-    else if (ph === "intro" && !first) { myK = k; const ids = ps.map(p => p.peer).sort(), me = ps.find(p => p.isMe && p.sameTab); lob.presence({ in: k, f: null, l: 1, pr: 0 }).catch(() => {}); startRace(Math.max(0, ids.indexOf(me ? me.peer : ""))); }
+    const join = first && ph === "intro" && free;   // a free run is open to whoever arrives while it is going on
+    if (first && ph !== "lobby" && !join) { spect = true; hide(); hud(false); orbit(); if (ph === "results") results(); else note("A race is under way. You join the next one."); }
+    else if (ph === "lobby") { spect = false; if (!D.on && !celeb) d.setDrive(true); lob.presence(Object.assign(isHost ? {} : { r: 0 }, celeb ? {} : { c: null })).catch(() => {}); lobbyScr(); }   // (a car that finished goes on round the track, hopping, and the others go on seeing it; any other car is taken off their screens)
+    else if (ph === "intro") { myK = k; const ids = ps.map(p => p.peer).sort(), me = ps.find(p => p.isMe && p.sameTab); lob.presence({ in: k, f: null, l: 1, pr: 0 }).catch(() => {}); startRace(Math.max(0, ids.indexOf(me ? me.peer : ""))); }
     else if (ph === "results") { if (myK === k || spect) results(); } }
   else if (phase === "lobby") lobbyScr();
   if (isHost && ph !== "lobby" && ph !== "results") { const rs = ps.filter(p => p.presence.in === k); if (rs.length && rs.every(p => p.presence.f != null)) setTimeout(() => hostSet({ ph: "results" }), 2500); }
   syncRem(ps); }
 // the other players' cars
 const clearRem = () => { for (const r of REM.values()) d.scene.remove(r.m); REM.clear(); };
-function syncRem(ps) { const live = new Set(); for (const p of ps) { if (p.isMe && p.sameTab || !p.presence.c || p.presence.in !== lastK || lastPh === "lobby") continue; live.add(p.peer); let r = REM.get(p.peer);
+function syncRem(ps) { const live = new Set(); for (const p of ps) { if (p.isMe && p.sameTab || !p.presence.c || p.presence.in !== lastK) continue; live.add(p.peer); let r = REM.get(p.peer);
     if (!r) { const m = d.makeCar(); m.traverse(o => { if (o.isMesh) { o.castShadow = false; if (ghost) { o.material = o.material.clone(); o.material.transparent = true; o.material.opacity = .32; o.material.depthWrite = false; } } }); m.userData.remote = true; d.scene.add(m); r = { m, p: V(0, 0, 0), q: new T.Quaternion(), first: true }; REM.set(p.peer, r); }
     const c = p.presence.c; r.p.set(c[0], c[1], c[2]); r.q.set(c[3], c[4], c[5], c[6]); if (r.first) { r.m.position.copy(r.p); r.m.quaternion.copy(r.q); r.first = false; } }
   for (const [id, r] of REM) if (!live.has(id)) { d.scene.remove(r.m); REM.delete(id); } }
@@ -4002,13 +4016,13 @@ d.FRAME.g = dt => {
     d.camera.position.set(s[1] + Math.cos(a) * rr, s[2] + hh, s[3] + Math.sin(a) * rr); d.controls.target.set(s[1], s[2] + 1, s[3]); d.camera.lookAt(d.controls.target); $("gBarB").textContent = s[0];
     if (cine.t >= SHOTS.length * 2.9) { cine = null; document.body.classList.remove("cine"); music(null); phase = "count"; cnt = { t: 0, n: 4 }; hud(true); } }
   else if (phase === "count") { cnt.t += dt; const n = 3 - Math.floor((cnt.t - .6) / 1); if (cnt.t > .6 && n !== cnt.n) { cnt.n = n; if (n > 0) { flash(String(n)); beep(false); } else { flash("GO!"); beep(true); D.hold = false; phase = "race"; setTimeout(() => { if (phase === "race") music("race"); }, 700); } } }
-  else if (phase === "race") { t += dt; if (D.zone) seen.add(D.zone); const dist = Math.hypot(D.p.x - fin.g.position.x, D.p.z - fin.g.position.z); if (dist > 12) away = true;
-    if (away && dist < 3.2 && seen.size >= 5) { away = false; seen.clear(); const lt = t - lapT0; lapT0 = t; if (!bestLap || lt < bestLap) bestLap = lt; if (lap >= laps) finishRace(); else { lap++; flash(lap === laps ? "Final lap" : "Lap " + lap); $("gLap").textContent = lap + "/" + laps; } }
+  else if (phase === "race" || phase === "free") { t += dt; if (D.zone) seen.add(D.zone); const dist = Math.hypot(D.p.x - fin.g.position.x, D.p.z - fin.g.position.z); if (dist > 12) away = true;
+    if (phase === "race" && away && dist < 3.2 && seen.size >= 5) { away = false; seen.clear(); const lt = t - lapT0; lapT0 = t; if (!bestLap || lt < bestLap) bestLap = lt; if (lap >= laps) finishRace(); else { lap++; flash(lap === laps ? "Final lap" : "Lap " + lap); $("gLap").textContent = lap + "/" + laps; } }
     $("gTime").textContent = fmt(t); boostEl.style.width = D.boost + "%";
     if (mode === "mp" && !ghost) for (const r of REM.values()) { _n.set(D.p.x - r.m.position.x, 0, D.p.z - r.m.position.z); const dd = _n.length(); if (dd < 1.45 && dd > .01 && Math.abs(D.p.y - r.m.position.y) < 1.4) { _n.multiplyScalar(1 / dd); D.p.addScaledVector(_n, (1.45 - dd) * .5); const vn = D.v.dot(_n); if (vn < 0) D.v.addScaledVector(_n, -vn * 1.5); D.v.addScaledVector(_n, 1.2); } } }
-  if (celeb) { celeb += dt; const m = d.car.mesh; m.position.y += Math.abs(Math.sin(celeb * 5.5)) * .55; m.rotation.y += Math.sin(celeb * 2.6) * .42; m.rotation.z += Math.sin(celeb * 5.5) * .07; if (phase !== "done") celeb = 0; }
+  if (celeb) { celeb += dt; const m = d.car.mesh; m.position.y += Math.abs(Math.sin(celeb * 5.5)) * .55; m.rotation.y += Math.sin(celeb * 2.6) * .42; m.rotation.z += Math.sin(celeb * 5.5) * .07; }   // (it stops only when the next game starts)
   for (const r of REM.values()) { const k = 1 - Math.exp(-dt * 12); r.m.position.lerp(r.p, k); r.m.quaternion.slerp(r.q, k); }
-  if (lob && (phase === "race" || phase === "done" || phase === "count" || phase === "intro")) { pubT += dt; if (pubT > .07) { pubT = 0; d.car.mesh.getWorldPosition(P); d.car.mesh.getWorldQuaternion(Q); const r2 = v => Math.round(v * 100) / 100, r3 = v => Math.round(v * 1000) / 1000;
+  if (lob && (phase === "race" || phase === "free" || phase === "done" || phase === "count" || phase === "intro" || celeb)) { pubT += dt; if (pubT > .07) { pubT = 0; d.car.mesh.getWorldPosition(P); d.car.mesh.getWorldQuaternion(Q); const r2 = v => Math.round(v * 100) / 100, r3 = v => Math.round(v * 1000) / 1000;
       lob.presence({ c: [r2(P.x), r2(P.y), r2(P.z), r3(Q.x), r3(Q.y), r3(Q.z), r3(Q.w)], l: lap, pr: lap * 100 + seen.size, f: finT }).catch(() => {});
       const mine = lap * 100 + seen.size, rs = racers(); $("gPos").textContent = rs.length > 1 ? (1 + rs.filter(p => !(p.isMe && p.sameTab) && ((p.presence.f != null && finT == null) || (p.presence.pr || 0) > mine)).length) + "/" + rs.length : ""; } }
 };
